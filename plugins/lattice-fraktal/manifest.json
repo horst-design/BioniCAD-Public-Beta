@@ -1,0 +1,8 @@
+{
+  "name": "lattice-fraktal",
+  "version": "1.0.0",
+  "beschreibung": "Fraktale/dendritische Verteil- und Tragstrukturen nach Bejans Constructal Law",
+  "core_api_version": "1.0",
+  "benoetigte_solver_adapter": [],
+  "parameter_schema": "schema/lattice-fraktal.schema.json"
+}

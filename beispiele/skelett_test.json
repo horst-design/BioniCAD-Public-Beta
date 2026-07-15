@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "voxel_groesse": 0.5,
+  "fillet": 0.6,
+  "kanal_typ": "solid",
+  "knoten_kugeln": true,
+  "baeume": [
+    {
+      "id": "haupt",
+      "knoten": [
+        { "pos": [25, 25, 0],  "parent": -1, "durchmesser": 6.0 },
+        { "pos": [25, 25, 18], "parent": 0,  "durchmesser": 4.8 },
+        { "pos": [25, 25, 30], "parent": 1,  "durchmesser": 3.8 },
+        { "pos": [13, 37, 46], "parent": 2,  "durchmesser": 2.6 },
+        { "pos": [37, 37, 46], "parent": 2,  "durchmesser": 2.6 },
+        { "pos": [13, 13, 46], "parent": 2,  "durchmesser": 2.6 },
+        { "pos": [37, 13, 46], "parent": 2,  "durchmesser": 2.6 }
+      ]
+    }
+  ]
+}

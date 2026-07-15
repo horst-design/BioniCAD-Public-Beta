@@ -1,0 +1,1580 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>BioniCAD — Mattheck / Struktur (FEM)</title>
+<style>
+  :root { --bg:#0e1116; --panel:#161b22; --line:#2a3340; --accent:#4fd1a5; --text:#e6edf3; --muted:#8b97a7; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:"Segoe UI",system-ui,sans-serif; overflow:hidden; }
+  #app { display:flex; height:100%; }
+  #panel { width:340px; min-width:340px; height:100%; overflow-y:auto; background:var(--panel); border-right:1px solid var(--line); padding:16px 16px 50px; }
+  #view { flex:1; position:relative; }
+  canvas { display:block; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  .sub { color:var(--muted); font-size:12px; margin:0 0 12px; line-height:1.4; }
+  details { border:1px solid var(--line); border-radius:9px; margin:0 0 9px; background:#12171e; }
+  summary { cursor:pointer; padding:9px 12px; font-size:12px; text-transform:uppercase; letter-spacing:.05em; font-weight:600; user-select:none; }
+  details[open] summary { border-bottom:1px solid var(--line); }
+  .body { padding:12px; }
+  .ctrl { margin:0 0 12px; } .ctrl:last-child { margin-bottom:0; }
+  .ctrl label { display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
+  input[type=number]{ width:100%; background:#21303a; color:var(--text); border:1px solid var(--line); border-radius:6px; padding:5px; font-size:12px; }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  select { width:100%; background:#21303a; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:7px; font-size:13px; }
+  select:focus,input:focus { outline:none; border-color:var(--accent); }
+  #modul { border-color:var(--accent); font-weight:600; margin-bottom:14px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .grid3 label { font-size:11px; color:var(--muted); display:block; margin-bottom:3px; }
+  .axX{color:#ff6b6b!important} .axY{color:#5fd06a!important} .axZ{color:#5f9bff!important}
+  .row { display:flex; gap:8px; margin:12px 0 0; }
+  button { flex:1; background:#21303a; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:9px 10px; font-size:13px; cursor:pointer; }
+  button:hover:not(:disabled){ border-color:var(--accent); } button:disabled{ opacity:.5; cursor:default; }
+  button.primary { background:var(--accent); color:#06231a; border-color:var(--accent); font-weight:600; }
+  button.mini { flex:0 0 auto; padding:5px 10px; font-size:12px; }
+  button.mini.on { background:var(--accent); color:#06231a; border-color:var(--accent); font-weight:600; }
+  .arow { display:flex; align-items:center; gap:6px; padding:4px 8px; margin-bottom:3px; border:1px solid var(--line); border-radius:6px; background:#141b22; font-size:12px; cursor:pointer; }
+  .arow.sel { border-color:var(--accent); background:#17242b; }
+  .arow .dot { display:inline-block; width:9px; height:9px; border-radius:50%; }
+  #stats { margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:9px; font-size:12.5px; color:var(--muted); line-height:1.7; background:#12171e; }
+  #stats b { color:var(--text); font-variant-numeric:tabular-nums; }
+  .hint { font-size:11.5px; color:var(--muted); margin-top:10px; line-height:1.5; }
+  .warn { color:#e0894f; }
+  #legend { position:absolute; right:14px; bottom:14px; background:rgba(22,27,34,.9); border:1px solid var(--line); border-radius:8px; padding:9px 12px; font-size:11.5px; color:var(--muted); display:none; }
+  #legend .bar { width:150px; height:10px; border-radius:5px; margin:5px 0 3px; background:linear-gradient(90deg,#3a6ea5,#4fd1a5,#e8c45a,#e0664f); }
+  .lbl { display:flex; justify-content:space-between; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <select id="modul" title="Modul wechseln">
+      <option value="baum">Modul: Baum-Generator</option>
+      <option value="tess">Modul: Tessellation (Kristallgitter)</option>
+      <option value="matt" selected>Modul: Mattheck / Struktur (FEM)</option>
+    </select>
+
+    <h1>Mattheck / Struktur</h1>
+    <p class="sub">Lastfall → FE-Spannungsanalyse → Visualisierung. MVP (Phase 1): lineare Voxel-FEM im Browser. SKO/CAO folgen.</p>
+
+    <details open><summary>Bauraum</summary><div class="body">
+      <div class="grid3">
+        <div><label>Größe X (mm)</label><input id="szx" type="number" value="60" min="2" step="2"></div>
+        <div><label>Größe Y</label><input id="szy" type="number" value="16" min="2" step="2"></div>
+        <div><label>Größe Z</label><input id="szz" type="number" value="16" min="2" step="2"></div>
+      </div>
+      <div class="ctrl" style="margin-top:10px"><label>Voxelgröße / Auflösung (mm)</label><input id="hv" type="number" value="2" min="0.2" step="0.2"></div>
+      <div class="row" style="margin-top:0"><button id="btnStl" class="mini">＋ Bauraum-STL</button><button id="btnStlClr" class="mini">STL entfernen</button><select id="presetSel" class="mini" title="Beispiel-Lastfall laden" style="max-width:170px"><option value="">Beispiel/Preset…</option><option value="kragtraeger">Kragträger</option><option value="bruecke">Brücke</option><option value="bracket">Bracket</option><option value="tisch">Tisch</option></select>
+        <input id="stlFile" type="file" accept=".stl" style="display:none"></div>
+      <p id="domInfo" class="hint" style="margin-top:6px">Physische Größe fest, Voxelgröße = Auflösung (kleiner = feineres Netz, gleiches Teil). STL schneidet die aktiven Voxel.</p>
+    </div></details>
+
+    <details><summary>Bauraumsperren (No-Go-Zonen)</summary><div class="body">
+      <div class="row" style="margin-top:0">
+        <button id="btnSpBox" class="mini">＋ Quader</button>
+        <button id="btnSpSph" class="mini">＋ Kugel</button>
+        <button id="btnSpCyl" class="mini">＋ Zylinder</button>
+        <button id="btnSpStl" class="mini">＋ STL</button>
+        <input id="spStlFile" type="file" accept=".stl" style="display:none">
+      </div>
+      <div id="sperrList" style="margin-top:6px"></div>
+      <p class="hint" style="margin-top:6px">Rote Zonen: dort entsteht <b>kein</b> Material (aus dem Bauraum ausgeschnitten). Position per Gizmo, Größe per Zahlen.</p>
+    </div></details>
+
+    <details open><summary>Material</summary><div class="body">
+      <div class="ctrl"><label>Material</label><select id="mat">
+        <option value="">— eigen —</option><option value="stahl">Stahl</option><option value="alu">Aluminium</option><option value="holz">Holz</option><option value="stein">Stein</option><option value="glas">Glas</option><option value="polyamid">Polyamid (PA)</option><option value="gummi">Gummi</option>
+      </select></div>
+      <div class="grid3">
+        <div><label>E-Modul (MPa)</label><input id="Emod" type="number" value="2100" min="1" step="100"></div>
+        <div><label>Querzahl ν</label><input id="nu" type="number" value="0.3" min="0" max="0.49" step="0.01"></div>
+        <div></div>
+      </div>
+    </div></details>
+
+    <details open><summary>Lastfall</summary><div class="body">
+      <div class="row" id="lcBar" style="margin-top:0;gap:6px;align-items:center">
+        <select id="lcSel" style="flex:1;min-width:0"></select>
+        <button id="btnLcAdd" class="mini" title="Neuer (leerer) Lastfall">＋ Fall</button>
+        <button id="btnLcDup" class="mini" title="Aktiven Lastfall duplizieren">⧉</button>
+        <button id="btnLcDel" class="mini" title="Aktiven Lastfall löschen">🗑</button>
+      </div>
+      <div class="row" style="margin-top:6px;gap:6px;align-items:center">
+        <input id="lcName" type="text" placeholder="Name" style="flex:1;min-width:0">
+        <span style="font-size:12px;opacity:.7" title="Gewicht für gewichtete Summe (#35)">w</span>
+        <input id="lcW" type="number" value="1" min="0" step="0.1" style="width:56px" title="Gewicht für gewichtete Summe (#35)">
+      </div>
+      <div class="row" style="margin-top:6px;gap:6px;align-items:center">
+        <span style="font-size:12px;opacity:.7" title="Wie mehrere Lastfälle in SKO/SIMP verrechnet werden">Aggregation</span>
+        <select id="aggMode" style="flex:1;min-width:0"><option value="ks">Worst-Case (KS)</option><option value="sum">Gewichtete Summe</option></select>
+        <span style="font-size:12px;opacity:.7" title="KS-Schärfe: größer = näher am echten Maximum">ρ</span>
+        <input id="aggRho" type="number" value="18" min="1" max="200" step="1" style="width:52px">
+      </div>
+      <p class="hint" style="margin:6px 0 2px">Jeder Lastfall hat eigene Lager &amp; Kräfte. Der Editor unten zeigt den gewählten Fall. Bei mehreren Fällen: Aggregation = Worst-Case (KS) oder gewichtete Summe.</p>
+      <div class="row" style="margin-top:0">
+        <button id="btnAddSup" class="mini">＋ Lager</button>
+        <button id="btnAddBolt" class="mini">＋ Schraube</button>
+        <button id="btnAddFor" class="mini">＋ Kraft</button>
+      </div>
+      <div id="regList" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:6px">
+        <button id="gzMove" class="mini on">↔ Verschieben</button>
+        <button id="gzScale" class="mini">⤢ Größe</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="btnVec" class="mini">◈ Kraftvektor ziehen</button>
+        <button id="btn2pt" class="mini">2 Punkte</button>
+      </div>
+      <div id="regEd"></div>
+      <p class="hint" style="margin-top:8px">Grün = Lager (fest), Orange = Kraft (Pfeil). Region per Gizmo/Zahlen setzen. „Kragträger" ist voreingestellt.</p>
+    </div></details>
+
+    <div class="check" style="display:flex;align-items:center;gap:9px;margin:2px 0 6px"><input id="gravOn" type="checkbox"><label for="gravOn" style="font-size:13px;cursor:pointer">Eigengewicht (−Z)</label>
+      <input id="gravG" type="number" value="0.0000766" step="0.00001" min="0" title="spezifisches Gewicht γ = ρ·g in N/mm³ (Stahl ≈ 7.66e-5)" style="width:90px;margin-left:auto"><span style="font-size:11px;opacity:.7">N/mm³</span></div>
+    <div class="row" style="margin-top:0"><button id="btnSolve" class="primary">🔬 Lösen (FEM)</button><button id="btnCancel" class="mini">⏹ Abbrechen</button></div>
+    <div class="ctrl" style="margin-top:8px"><label>Ergebnis-Transparenz <b id="vOpac">0 %</b></label><input id="resOpac" type="range" min="0" max="90" value="0" step="5"></div>
+
+    <details><summary>SKO (Topologie)</summary><div class="body">
+      <div class="grid3"><div><label>Zielvolumen %</label><input id="skoVf" type="number" value="40" min="5" max="95" step="5"></div><div><label>Iterationen</label><input id="skoIt" type="number" value="22" min="1" max="60" step="1"></div><div></div></div>
+      <div class="check" style="display:flex;align-items:center;gap:9px;margin-top:8px"><input id="skoFilt" type="checkbox" checked><label for="skoFilt" style="font-size:13px;cursor:pointer">Dichte-Filter (glatt)</label></div>
+      <div class="row" style="margin-top:8px"><button id="btnSko" class="primary">SKO ausführen</button><button id="btnSkoPrev" class="mini">⚡ Grob</button><button id="btnSkoReset" class="mini">↺ Reset</button></div>
+      <p class="hint" style="margin-top:6px">Entfernt unterspanntes Material bis zum Zielvolumen (Lager-/Kraft-Zonen bleiben). Moderate Voxelgröße = interaktiv.</p>
+    </div></details>
+
+    <details><summary>SIMP-Pro (Methode 2 · scharfe Kanten)</summary><div class="body">
+      <div class="grid3"><div><label>Zielvolumen %</label><input id="simpVf" type="number" value="40" min="5" max="95" step="5"></div><div><label>Iterationen</label><input id="simpIt" type="number" value="40" min="5" max="120" step="1"></div><div></div></div>
+      <div class="grid3" style="margin-top:6px"><div><label>Filterradius (Voxel)</label><input id="simpRmin" type="number" value="1.5" min="1" max="6" step="0.1"></div><div><label>β max (Schärfe)</label><input id="simpBeta" type="number" value="16" min="1" max="64" step="1"></div><div></div></div>
+      <div class="row" style="margin-top:8px"><button id="btnSimp" class="primary">SIMP-Pro ausführen</button><button id="btnSimpReset" class="mini">↺ Reset</button></div>
+      <p class="hint" style="margin-top:6px">Dreifeld-SIMP: Dichtefilter → Heaviside-Projektion (β-Continuation) + OC. Netzunabhängige, scharfe Member wie in topopt — Filterradius = Mindest-Stegbreite, β steuert die Kantenschärfe. FE-Löser identisch zur SKO, nur die Optimierungsschleife ist feiner.</p>
+    </div></details>
+
+    <details><summary>Beulanalyse (Methode 3a · Stabilität)</summary><div class="body">
+      <div class="row" style="margin-top:0"><button id="btnBuckle" class="primary">🌀 Knickanalyse</button></div>
+      <div id="buckOut" class="hint" style="margin-top:8px">Noch keine Analyse. Lastfall + Struktur (Vollteil, SKO oder SIMP-Pro) nötig.</div>
+      <div class="ctrl" style="margin-top:6px"><label>Mode-Amplitude ×<b id="vbuck">0</b></label><input id="buckScale" type="range" min="0" max="100" value="0" step="1"></div>
+      <p class="hint" style="margin-top:6px">Lineares Beulen: kleinster Buckling-Load-Factor λ (kritischer Lastfaktor) + erste Knickform. λ&gt;1 = stabil bei aktueller Last (λ = Sicherheitsfaktor gegen Knicken); λ&lt;1 = knickt vorher. Verifiziert gegen Euler (±6%). Amplitude-Regler zeigt die Knickform.</p>
+    </div></details>
+
+    <details><summary>Beul-Optimierung (Methode 3b)</summary><div class="body">
+      <div class="grid3"><div><label>Zielvolumen %</label><input id="boVf" type="number" value="50" min="10" max="90" step="5"></div><div><label>Iterationen</label><input id="boIt" type="number" value="40" min="5" max="120" step="1"></div><div><label>Schrittweite</label><input id="boMove" type="number" value="0.1" min="0.02" max="0.3" step="0.01"></div></div>
+      <div class="row" style="margin-top:8px"><button id="btnBuckOpt" class="primary">🌀 Beulen optimieren</button><button id="btnBuckOptReset" class="mini">↺ Reset</button></div>
+      <div id="boOut" class="hint" style="margin-top:8px">Maximiert den kleinsten Knick-Lastfaktor λ bei festem Volumen — verteilt Material gegen Knicken (druckdominierte Fälle). Multi-Mode-Eigenlöser + KS + OC, Sensitivität exakt gegen finite Differenzen verifiziert. Lastfall nötig. Läuft im Hintergrund; feine Gitter dauern.</div>
+    </div></details>
+
+    <details><summary>CAO (Kerbrundung / Mattheck)</summary><div class="body">
+      <div class="grid3"><div><label>Iterationen</label><input id="caoIt" type="number" value="6" min="1" max="20" step="1"></div><div><label>Band %</label><input id="caoBand" type="number" value="30" min="5" max="90" step="5"></div><div></div></div>
+      <div class="check" style="display:flex;align-items:center;gap:9px;margin:8px 0 2px"><input id="adaptBau" type="checkbox"><label for="adaptBau" style="font-size:13px;cursor:pointer">Adaptiver Bauraum (nur Box-Bauraum)</label></div>
+      <p class="hint" style="margin:0 0 6px">Vergrössert den Bauraum automatisch (obere Grenze je Achse), wenn CAO dort anwachsen möchte, statt am Rand abzubrechen. Nur bei Box-Bauraum wirksam (bei STL-Bauraum ohne Effekt).</p>
+      <div class="row" style="margin-top:8px"><button id="btnCao" class="primary">CAO ausführen</button><button id="btnCaoReset" class="mini">↺ Reset</button></div>
+      <p class="hint" style="margin-top:6px">Trägt Material an hochbelasteten Oberflächen auf, entfernt an unterbelasteten → gleichmäßige Oberflächenspannung. Auf Vollteil oder SKO-Ergebnis anwenden.</p>
+    </div></details>
+
+    <details><summary>2D-Formfindung</summary><div class="body">
+      <div class="row" style="margin-top:0"><button id="btn2dOpen" class="primary">▦ 2D-Formfindung öffnen</button></div>
+      <p class="hint" style="margin-top:6px">Schnelle 2D-Topologieoptimierung: Lager/Kräfte auf einer Fläche zeichnen → SIMP (+ SKO-Vorschau). STL-Schnitt &amp; Export folgen.</p>
+    </div></details>
+
+    <details><summary>Export & Speichern</summary><div class="body">
+      <div class="ctrl"><label>Dateiname (Basis)</label><input id="expName" type="text" value="struktur"></div>
+      <div class="row" style="margin-top:0"><button id="btnPng" class="mini">🖼 PNG (+Legende)</button><button id="btnObj" class="mini">📦 OBJ (Farbe)</button></div>
+      <div class="row" style="margin-top:6px"><button id="btnSaveLc" class="mini">💾 Lastfall</button><button id="btnLoadLc" class="mini">📂 laden</button><input id="lcFile" type="file" accept=".json" style="display:none"></div>
+      <div class="row" style="margin-top:6px"><button id="btnSaveAll" class="mini">💾 Ganzes Projekt</button><button id="btnLoadAll" class="mini">📂 laden</button><input id="allFile" type="file" accept=".json" style="display:none"></div>
+      <p class="hint" style="margin-top:6px">Speicherdialog (Name + Ort) in Chrome; sonst Download. OBJ mit von-Mises-Vertexfarben (MeshLab liest v x y z r g b). „Lastfall" = nur Bauraum/Material/Lager/Kräfte/Sperren (schlank); „Ganzes Projekt" zusätzlich alle Regler, importierte STLs, Kraftfluss-Kurven und das letzte Rechenergebnis (inkl. Spannungsfeld) — grösser, aber verlustfrei.</p>
+    </div></details>
+
+    <details><summary>PicoGK-Kern (glattes STL)</summary><div class="body">
+      <div class="grid3">
+        <div><label>Kern-Voxel (mm)</label><input id="kVox" type="number" value="0.4" step="0.1" min="0.1"></div>
+        <div><label>Fillet (mm)</label><input id="kFil" type="number" value="1.0" step="0.1" min="0"></div>
+        <div><label>Glättung</label><select id="kSmooth"><option value="closing">Closing</option><option value="opening">Opening</option><option value="beides">Beides</option><option value="keine">Keine</option></select></div>
+      </div>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Modus</label><select id="kModus"><option value="solid">Voll</option><option value="lattice">Gitter (knochenartig)</option></select></div>
+        <div><label>Strebe (mm)</label><input id="kStrut" type="number" value="0" step="0.1" min="0"></div>
+        <div></div>
+      </div>
+      <label style="display:flex;align-items:center;gap:7px;margin-top:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="kOrient" style="width:auto"> an Lastpfaden ausrichten (Streben entlang Hauptspannungen, Dicke ∝ Spannung)</label>
+      <div class="ctrl" style="margin-top:6px"><label>Server-URL</label><input id="kUrl" type="text" value="http://localhost:5151/"></div>
+      <button id="btnKern" class="mini" style="margin-top:6px">🛠 Kern rendern &amp; anzeigen</button>
+      <div class="row" style="margin-top:6px"><button id="btnKernDl" class="mini" disabled>⬇ STL speichern</button><button id="btnKernHide" class="mini" disabled>↩ Struktur</button></div>
+      <p class="hint" style="margin-top:6px">Schickt das aktuelle Voxelfeld (nach SKO/CAO) an den lokalen PicoGK-Server → glattes STL, direkt angezeigt. „FEM auf Kern" nimmt das geglättete Ergebnis als neuen Bauraum und rechnet neu. Server starten: <code>lattice-fraktal serve</code>, Seite über <code>http://localhost:5151/mattheck.html</code> öffnen.</p>
+    </div></details>
+
+    <details><summary>Lattice direkt (ohne Server)</summary><div class="body">
+      <div class="grid3">
+        <div><label>Modus</label><select id="latMode"><option value="bcc">BCC (knochenartig)</option><option value="orient">Lastpfad-orientiert</option></select></div>
+        <div><label>Strebe (mm)</label><input id="latStrut" type="number" value="0" step="0.1" min="0"></div>
+        <div></div>
+      </div>
+      <div class="row" style="margin-top:6px"><button id="btnLat" class="mini">🕸 Gitter anzeigen</button><button id="btnLatStl" class="mini" disabled>📦 Gitter-STL</button><button id="btnLatHide" class="mini">↩ Struktur</button></div>
+      <p class="hint" style="margin-top:6px">Erzeugt das Gitter direkt aus dem SKO/CAO-Voxelfeld — kein Server nötig. BCC = isotrop (Zentrum→8 Ecken); „Lastpfad" richtet die Streben an den Hauptspannungen aus (braucht einen FEM-Lauf) und skaliert die Dicke mit der Spannung. STL = überlappende Zylinder (der Slicer vereinigt sie). Für massiv &amp; wasserdicht den PicoGK-Kern nutzen.</p>
+    </div></details>
+
+    <details><summary>→ Tessellation-Übergabe</summary><div class="body">
+      <button id="btnBauStl" class="mini">📦 Bauraum-STL (Voxelform)</button>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Saat (jedes N-te)</label><input id="flowSeed" type="number" value="4" min="1" step="1"></div>
+        <div><label>Schritt (×h)</label><input id="flowStep" type="number" value="0.6" min="0.1" step="0.1"></div>
+        <div><label>max Schritte</label><input id="flowMax" type="number" value="300" min="10" step="10"></div>
+      </div>
+      <div class="row" style="margin-top:6px"><button id="btnFlow" class="mini">🌊 Kraftfluss tracen</button><button id="btnFlowExp" class="mini" disabled>💾 Kraftfluss-JSON</button></div>
+      <div class="ctrl" style="margin-top:6px"><label>Glättung <b id="vFlowSm">0</b></label><input id="flowSmooth" type="range" min="0" max="1" value="0" step="0.05"></div>
+      <div class="row" style="margin-top:4px"><button id="btnFlowDel" class="mini">🗑 Linie löschen</button><button id="btnFlowMove" class="mini">↔ Linie verschieben</button><button id="btnFlowDraw" class="mini">✎ Linie zeichnen</button></div>
+      <p class="hint" style="margin-top:6px">Für Tessellation: Bauraum-STL = die SKO/CAO-Voxelform (dort als „＋ Bauraum-STL" laden → Gitter füllt die Form). Kraftfluss = getracte Hauptspannungs-Trajektorien als JSON (dort als Attraktor importieren). <b>Glättung</b> = Kurven weicher; <b>Linie löschen</b> = Modus an, dann unerwünschte Linie im 3D anklicken. Beide im selben Koordinatensystem. Kraftfluss braucht einen FEM-Lauf („Lösen").</p>
+    </div></details>
+
+    <details><summary>→ Impliziter Kern (CAIO-Feld)</summary><div class="body">
+      <div class="grid3">
+        <div><label>Zelltyp</label><select id="flType"><option value="gyroid">Gyroid (TPMS)</option><option value="strut">Streben</option><option value="shape">Nur Form (glatt)</option></select></div>
+        <div><label>Zellgröße (mm)</label><input id="flCell" type="number" value="6" step="0.5" min="1"></div>
+        <div><label>Kern-Voxel (mm)</label><input id="flVoxel" type="number" value="0.5" step="0.1" min="0.1"></div>
+      </div>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Volumenanteil</label><input id="flVol" type="number" value="0.4" step="0.05" min="0.05" max="0.95"></div>
+        <div><label>Grading (Spannung)</label><input id="flGrad" type="number" value="0.6" step="0.05" min="0" max="1"></div>
+        <div><label>Kraftfluss-Intensität</label><input id="flCaio" type="number" value="0.6" step="0.05" min="0" max="1"></div>
+      </div>
+      <div class="grid3" style="margin-top:6px">
+        <div><label>Fluss-Länge (−1…1)</label><input id="flLen" type="number" value="0" step="0.1" min="-1" max="1"></div>
+        <div><label>Fluss-Smoothing</label><input id="flSm" type="number" value="0.5" step="0.05" min="0" max="1"></div>
+        <div><label>Klippen auf</label><select id="flClip"><option value="form">Optimierte Form</option><option value="bauraum">Bauraum (Original-STL)</option><option value="mesh">Bauraum scharf (STL-Mesh)</option></select></div>
+      </div>
+      <div class="row" style="margin-top:6px"><button id="btnFieldLat" class="mini">💠 Feld-Lattice rendern</button><button id="btnCaioField" class="mini">💾 Feld-JSON</button></div>
+      <p class="hint" style="margin-top:6px">Implizites, wasserdichtes Gitter im PicoGK-Kern: Gyroid/Streben, Wandstärke aus von-Mises gegraded, Koordinaten am Hauptspannungs-Frame verzerrt (CAIO), an die Form geklippt. „Nur Form" = geglättete SKO/CAO-Voxelform (Marching-Cubes). <b>Klippen auf</b>: „Optimierte Form" füllt nur die SKO/CAO-Struktur; „Bauraum (Original-STL)" legt das Gitter über den gesamten Bauraum, an der groben FEM-Voxelform geklippt; „Bauraum scharf (STL-Mesh)" schickt die importierte Bauraum-STL an den Kern und schneidet das Gitter MESSERSCHARF an der Mesh-Oberfläche (feine Kern-Voxelgröße, unabhängig von der FEM-Auflösung). Der CAIO-Frame kommt aus dem FEM-Lauf. Braucht FEM-Lauf + laufenden Server. Anzeige/Speichern über die Kern-Buttons oben.</p>
+    </div></details>
+
+    <details><summary>→ Booleans (Resultat ↔ Bauraum/STL)</summary><div class="body">
+      <div id="boolPanel"></div>
+      <p class="hint" style="margin-top:6px">Verrechnet das zuletzt gerenderte Kern-Resultat (A) mit dem Bauraum oder einer importierten STL (B): Vereinen, Abziehen, oder Split (innen/außen behalten). Wasserdicht im PicoGK-Kern. Braucht ein Kern-Resultat (z. B. „Feld-Lattice rendern") + laufenden Server. Ergebnis ersetzt die Anzeige und ist über „⬇ STL speichern" oben sicherbar.</p>
+    </div></details>
+
+    <details open><summary>Anzeige</summary><div class="body">
+      <div class="ctrl"><label>Feld</label><select id="field">
+        <option value="vm">von-Mises-Spannung</option>
+        <option value="disp">Verschiebungsbetrag</option>
+      </select></div>
+      <div class="ctrl"><label>Verformung ×<b id="vdef">0</b></label><input id="defScale" type="range" min="0" max="100" value="0" step="1"></div>
+      <label style="display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12px;cursor:pointer"><input type="checkbox" id="showStress" style="width:auto"> Hauptspannungen (Lastpfad-Feld)</label>
+      <p class="hint" style="margin-top:4px">Rot = Zug, Blau = Druck; Linie = Richtung, Länge = Betrag. Nach „Lösen" verfügbar.</p>
+    </div></details>
+
+    <div id="stats">
+      Elemente: <b id="sEl">–</b> · Knoten-DOF: <b id="sDof">–</b><br>
+      CG-Iterationen: <b id="sIt">–</b> · Residuum: <b id="sRes">–</b><br>
+      max von-Mises: <b id="sMax">–</b> MPa<br>
+      max Verschiebung: <b id="sDisp">–</b> mm<br>
+      <span id="sWarn" class="warn"></span>
+    </div>
+    <p class="hint">Testfall Kragträger ist analytisch prüfbar. STL-Bauraum + feinere Auflösung nach Bedarf; Solve läuft nur auf Knopfdruck.</p>
+  </div>
+  <div id="view">
+    <div id="legend"><div class="lbl"><span id="lgMin">0</span><span id="lgTit">von Mises</span><span id="lgMax">1</span></div><div class="bar"></div></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+<script src="boolean_ops.js"></script>
+<script src="mattheck_buckling.js"></script>
+<script src="flow_tools.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+<script src="mattheck_fem.js"></script>
+<script src="form2d.js"></script>
+<script src="form2d_ui.js"></script>
+<script>
+const el=id=>document.getElementById(id);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+// STL-Einbettung in Projektdatei (2026-07-12, *.bio Phase 2 — siehe wissensbasis/28_projektdatei_bio_format_konzept_v1.md
+// und dieselbe Umsetzung in tessellation.html Phase 1). Rohdaten (nicht nur die geparste Geometrie) als Base64.
+function ab2b64(buf){ const bytes=new Uint8Array(buf); let bin=''; const CHUNK=0x8000;
+  for(let i=0;i<bytes.length;i+=CHUNK) bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+CHUNK));
+  return btoa(bin); }
+function b642ab(b64){ const bin=atob(b64), bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
+el('modul').addEventListener('change',e=>{ if(e.target.value==='baum') location.href='baum_vorschau.html'; else if(e.target.value==='tess') location.href='tessellation.html'; });
+
+// ---------------- Szene (z-up) ----------------
+const view=el('view');
+const renderer=new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); view.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0e1116);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,6000); camera.up.set(0,0,1);
+scene.add(new THREE.AmbientLight(0xffffff,0.7));
+const key=new THREE.DirectionalLight(0xffffff,0.85); key.position.set(60,30,90); scene.add(key);
+const fill=new THREE.DirectionalLight(0x88aacc,0.35); fill.position.set(-50,-40,20); scene.add(fill);
+
+const surfMat=new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.6, metalness:0.05, flatShading:true});
+let surfMesh=new THREE.Mesh(new THREE.BufferGeometry(), surfMat); scene.add(surfMesh);
+const kernMat=new THREE.MeshStandardMaterial({color:0xd9a441, roughness:0.5, metalness:0.1});
+let kernMesh=new THREE.Mesh(new THREE.BufferGeometry(), kernMat); kernMesh.visible=false; scene.add(kernMesh);
+let boxGroup=new THREE.Group(); scene.add(boxGroup);
+let regGroup=new THREE.Group(); scene.add(regGroup);
+let stressGroup=new THREE.Group(); scene.add(stressGroup);
+let latGroup=new THREE.Group(); scene.add(latGroup);
+let flowGroup=new THREE.Group(); scene.add(flowGroup); let flowLines=null, rawFlowLines=null, flowDel=new Set(), flowDelMode=false;
+let flowMoveMode=false, flowDrawMode=false, drawBuf=[], moveSel=-1;
+let drawPrevGroup=new THREE.Group(); scene.add(drawPrevGroup);
+
+const target=new THREE.Vector3(30,8,8);
+let az=Math.PI*0.25, elv=Math.PI*0.2, rad=140, dirty=true;
+function updateCam(){ const ce=Math.cos(elv),se=Math.sin(elv); camera.position.set(target.x+rad*ce*Math.cos(az),target.y+rad*ce*Math.sin(az),target.z+rad*se); camera.lookAt(target); }
+let drag=false,px=0,py=0,downX=0,downY=0,moved=false,orbitOn=true;
+renderer.domElement.addEventListener('mousedown',e=>{ if(e.button!==0)return; drag=true; px=downX=e.clientX; py=downY=e.clientY; moved=false; });
+addEventListener('mouseup',()=>{ drag=false; });
+addEventListener('mousemove',e=>{ if(!drag)return; if(Math.abs(e.clientX-downX)+Math.abs(e.clientY-downY)>5) moved=true; if(!orbitOn)return;
+  az-=(e.clientX-px)*0.01; elv=clamp(elv+(e.clientY-py)*0.01,-1.45,1.45); px=e.clientX; py=e.clientY; dirty=true; });
+renderer.domElement.addEventListener('wheel',e=>{ e.preventDefault(); rad=clamp(rad*(1+Math.sign(e.deltaY)*0.08),8,3000); dirty=true; },{passive:false});
+function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); dirty=true; }
+addEventListener('resize',resize);
+
+// Gizmo für Regionen
+const tControls=new THREE.TransformControls(camera, renderer.domElement); tControls.setSize(0.8); scene.add(tControls);
+const handle=new THREE.Object3D(); scene.add(handle);
+tControls.addEventListener('dragging-changed', e=>{ orbitOn=!e.value; if(!e.value && sel && sel.kind==='sperre') onSperrenChanged(); });
+tControls.addEventListener('objectChange', ()=>{ onGizmo(); });
+
+// ---------------- Domäne ----------------
+let bx=30,by=8,bz=8,h=2, mask=null, mask0=null, stlData=null;   // mask[vidx]=1 aktiv, mask0=Original
+const vidx=(i,j,k)=>(k*by+j)*bx+i;
+function readDom(){ h=Math.max(+el('hv').value,0.2);
+  bx=clamp(Math.round(Math.max(+el('szx').value,2)/h),2,200);
+  by=clamp(Math.round(Math.max(+el('szy').value,2)/h),2,200);
+  bz=clamp(Math.round(Math.max(+el('szz').value,2)/h),2,200); }
+function computeDomain(){ const N=bx*by*bz, m=new Uint8Array(N);
+  for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){
+    let on=1; const cx=(i+0.5)*h,cy=(j+0.5)*h,cz=(k+0.5)*h;
+    if(stlData){ on=insideMesh([cx,cy,cz],stlData.tris,stlData.bk)?1:0; }
+    if(on && sperren.length && inSperre([cx,cy,cz],'leer')) on=0;   // nur Leer-Sperren aus dem Bauraum schneiden
+    m[vidx(i,j,k)]=on;
+  }
+  return m;
+}
+function buildMask(){ mask=computeDomain(); mask0=mask.slice(); }
+// Sperren-Änderung OHNE Reset: nur Design-Domäne mask0 neu (für nächsten Lauf); Ergebnis-mask bleibt erhalten, wenn eins da ist.
+function onSperrenChanged(){
+  let hadResult=false; if(mask&&mask0&&mask.length===mask0.length){ for(let n=0;n<mask.length;n++){ if(mask[n]!==mask0[n]){ hadResult=true; break; } } }
+  mask0=computeDomain(); if(!hadResult) mask=mask0.slice();
+  buildSurface(); drawBox(); drawRegions();
+  let c=0; for(let n=0;n<mask.length;n++) c+=mask[n]; if(el('sEl')) el('sEl').textContent=c.toLocaleString('de'); dirty=true;
+}
+const active=(i,j,k)=> i>=0&&j>=0&&k>=0&&i<bx&&j<by&&k<bz && mask[vidx(i,j,k)]===1;
+
+// ---------------- Oberflächen-Mesher (nur Außenflächen, eine Geometrie) ----------------
+let faceVox=[];      // je Fläche der zugehörige voxel-Index (für Farbe)
+let vertNode=[];     // je Vertex der Knoten-Index (für Verformung)
+let basePos=null;    // Ausgangspositionen
+const nid=(i,j,k)=>(k*(by+1)+j)*(bx+1)+i;
+const FACES=[ // [dir, 4 Eck-Knoten-Offsets (i,j,k)]
+  [[ 1,0,0],[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]],
+  [[-1,0,0],[[0,0,0],[0,0,1],[0,1,1],[0,1,0]]],
+  [[0, 1,0],[[0,1,0],[0,1,1],[1,1,1],[1,1,0]]],
+  [[0,-1,0],[[0,0,0],[1,0,0],[1,0,1],[0,0,1]]],
+  [[0,0, 1],[[0,0,1],[1,0,1],[1,1,1],[0,1,1]]],
+  [[0,0,-1],[[0,0,0],[0,1,0],[1,1,0],[1,0,0]]],
+];
+function buildSurface(){
+  const pos=[], col=[]; faceVox=[]; vertNode=[];
+  for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){
+    if(mask[vidx(i,j,k)]!==1) continue;
+    for(const [d,q] of FACES){
+      if(active(i+d[0],j+d[1],k+d[2])) continue;   // nur freiliegende Flächen
+      const P=q.map(o=>[ (i+o[0])*h,(j+o[1])*h,(k+o[2])*h ]);
+      const Nn=q.map(o=> nid(i+o[0],j+o[1],k+o[2]));
+      // 2 Dreiecke (0,1,2)(0,2,3)
+      const tri=[[0,1,2],[0,2,3]];
+      for(const t of tri){ for(const a of t){ pos.push(P[a][0],P[a][1],P[a][2]); col.push(0.4,0.55,0.7); vertNode.push(Nn[a]); faceVox.push(vidx(i,j,k)); } }
+    }
+  }
+  basePos=new Float32Array(pos);
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(basePos.slice(),3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+  g.computeVertexNormals();
+  surfMesh.geometry.dispose(); surfMesh.geometry=g;
+  dirty=true;
+}
+function drawBox(){ boxGroup.clear(); const BX=bx*h,BY=by*h,BZ=bz*h;
+  const C=[[0,0,0],[BX,0,0],[BX,BY,0],[0,BY,0],[0,0,BZ],[BX,0,BZ],[BX,BY,BZ],[0,BY,BZ]], E=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]], p=[];
+  for(const [a,b] of E) p.push(...C[a],...C[b]);
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));
+  boxGroup.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x2a3340})));
+  target.set(BX/2,BY/2,BZ/2);
+}
+
+// ---------------- Regionen (Lager + Kraft) ----------------
+// #35: Mehrere Lastfälle. sups/fors zeigen IMMER auf den aktiven Fall; nach jeder Neuzuweisung lastfaelle[activeLc] pflegen bzw. syncLcRefs() rufen.
+let lastfaelle=[{ name:'Fall 1', w:1,
+  sups:[{x:0,y:8,z:8,sx:3,sy:18,sz:18}],
+  fors:[{x:60,y:8,z:8,sx:3,sy:18,sz:18,fx:0,fy:0,fz:-500,mom:0}] }];
+let activeLc=0;
+let sups=lastfaelle[activeLc].sups, fors=lastfaelle[activeLc].fors;
+function syncLcRefs(){ sups=lastfaelle[activeLc].sups; fors=lastfaelle[activeLc].fors; }
+let sel={kind:'sup',idx:0}, VSCALE=0.1, vecMode=false, twoPt=null;
+const curReg=()=>{ if(!sel) return null; const a=sel.kind==='sup'?sups:sel.kind==='for'?fors:sperren; return a[sel.idx]||null; };
+function fitVScale(){ const md=Math.max(bx,by,bz)*h; let F=1; for(const f of fors){ const m=Math.hypot(f.fx,f.fy,f.fz); if(m>F)F=m; } VSCALE=md*0.4/F; }
+function drawRegions(){ regGroup.clear(); const R=Math.max(bx,by,bz)*h;
+  const draw=(kind,idx,r)=>{ const col=kind==='sup'?0x4fd86a:0xe08a4f, isS=(sel&&sel.kind===kind&&sel.idx===idx);
+    const geo=r.shape==='cyl' ? new THREE.CylinderGeometry(Math.max(r.rad||3,0.2),Math.max(r.rad||3,0.2),Math.max(r.len||3,0.2),20)
+      : new THREE.BoxGeometry(Math.max(r.sx,0.2),Math.max(r.sy,0.2),Math.max(r.sz,0.2));
+    const m=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:(isS&&!vecMode)?0.35:0.16,depthWrite:false}));
+    m.position.set(r.x,r.y,r.z); if(r.shape==='cyl'){ const ax=r.axis||'z'; if(ax==='x')m.rotation.z=Math.PI/2; else if(ax==='z')m.rotation.x=Math.PI/2; } m.userData={kind,idx}; regGroup.add(m);
+    if(kind==='for'){ const v=new THREE.Vector3(r.fx,r.fy,r.fz), L=v.length();
+      if(L>1e-6){ const dir=v.clone().normalize(), alen=L*VSCALE, cen=new THREE.Vector3(r.x,r.y,r.z);
+        regGroup.add(new THREE.ArrowHelper(dir,cen,Math.max(alen,R*0.001), isS?0xffd24a:0xe08a4f, alen*0.2, alen*0.12));
+        const tip=new THREE.Mesh(new THREE.SphereGeometry(Math.max(R*0.02,0.4),10,8), new THREE.MeshBasicMaterial({color:(isS&&vecMode)?0xffffff:0xffd24a, depthTest:false}));
+        tip.position.copy(cen).addScaledVector(dir,alen); tip.userData={kind:'for',idx,tip:true}; tip.renderOrder=999; regGroup.add(tip); } } };
+  sups.forEach((r,i)=>draw('sup',i,r)); fors.forEach((r,i)=>draw('for',i,r)); drawSperren(); dirty=true;
+}
+function attachGizmo(){ const r=curReg(); if(!r){ tControls.detach(); return; }
+  if(sel.kind==='sperre') tControls.setMode('translate');
+  if(vecMode && sel.kind==='for'){ handle.position.set(r.x+r.fx*VSCALE, r.y+r.fy*VSCALE, r.z+r.fz*VSCALE); handle.scale.set(1,1,1); tControls.setMode('translate'); tControls.attach(handle); return; }
+  handle.position.set(r.x,r.y,r.z); handle.scale.set(1,1,1); handle.userData={sx0:r.sx,sy0:r.sy,sz0:r.sz}; tControls.attach(handle); }
+function onGizmo(){ const r=curReg(); if(!r)return; const mode=tControls.getMode();
+  if(vecMode && sel.kind==='for'){ r.fx=+((handle.position.x-r.x)/VSCALE).toFixed(1); r.fy=+((handle.position.y-r.y)/VSCALE).toFixed(1); r.fz=+((handle.position.z-r.z)/VSCALE).toFixed(1); drawRegions(); renderRegEd(); dirty=true; return; }
+  if(mode==='scale'){ r.sx=Math.max(0.2,handle.userData.sx0*handle.scale.x); r.sy=Math.max(0.2,handle.userData.sy0*handle.scale.y); r.sz=Math.max(0.2,handle.userData.sz0*handle.scale.z); }
+  else { r.x=+handle.position.x.toFixed(2); r.y=+handle.position.y.toFixed(2); r.z=+handle.position.z.toFixed(2); }
+  drawRegions(); renderRegEd(); dirty=true;
+}
+function renderRegList(){ const box=el('regList'); if(!box)return; let hh='';
+  const row=(kind,i,label,c)=>`<div class="arow${sel&&sel.kind===kind&&sel.idx===i?' sel':''}" data-k="${kind}" data-i="${i}" style="justify-content:space-between"><span><span class="dot" style="background:${c}"></span>${label}</span><span data-del="${kind}:${i}" style="cursor:pointer;color:#e0894f">✕</span></div>`;
+  sups.forEach((r,i)=>hh+=row('sup',i,'Lager '+(i+1),'#4fd86a')); fors.forEach((r,i)=>hh+=row('for',i,'Kraft '+(i+1),'#e08a4f'));
+  box.innerHTML=hh;
+  box.querySelectorAll('.arow').forEach(rr=> rr.addEventListener('click',()=>selectRegion(rr.getAttribute('data-k'),+rr.getAttribute('data-i'))));
+  box.querySelectorAll('[data-del]').forEach(x=> x.addEventListener('click',ev=>{ ev.stopPropagation(); const parts=x.getAttribute('data-del').split(':'), k=parts[0], i=+parts[1];
+    (k==='sup'?sups:fors).splice(i,1); if(sel&&sel.kind===k&&sel.idx===i){ sel=null; tControls.detach(); } else if(sel&&sel.kind===k&&sel.idx>i) sel.idx--;
+    renderRegList(); drawRegions(); renderRegEd(); }));
+}
+function renderRegEd(){ const r=curReg(); if(!r){ el('regEd').innerHTML=''; return; } const isF=sel.kind==='for';
+  if(sel.kind==='sperre'){ const shp=r.shape||'box';
+    el('regEd').innerHTML=`<div style="margin-top:10px;padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#141b22">
+      <div style="font-size:12px;color:#ff8a7a;margin-bottom:6px">Bauraumsperre ${sel.idx+1} — ${shp==='sphere'?'Kugel':shp==='cyl'?'Zylinder':shp==='stl'?'STL':'Quader'}</div>
+      <div class="row" style="margin:2px 0 6px;gap:6px;align-items:center"><span style="font-size:12px;opacity:.75">Typ</span><select id="spMode" style="flex:1"><option value="leer" ${(r.mode||'leer')!=='voll'?'selected':''}>Leerraum (No-Go, kein Material)</option><option value="voll" ${r.mode==='voll'?'selected':''}>Vollmaterial (bleibt fix)</option></select></div>
+      <div class="grid3"><div><label class="axX">X</label><input type="number" id="spX" value="${r.x}" step="1"></div><div><label class="axY">Y</label><input type="number" id="spY" value="${r.y}" step="1"></div><div><label class="axZ">Z</label><input type="number" id="spZ" value="${r.z}" step="1"></div></div>
+      ${shp==='box'?`<div class="grid3" style="margin-top:6px"><div><label class="axX">Größe X</label><input type="number" id="spSx" value="${r.sx}" step="1" min="0.2"></div><div><label class="axY">Y</label><input type="number" id="spSy" value="${r.sy}" step="1" min="0.2"></div><div><label class="axZ">Z</label><input type="number" id="spSz" value="${r.sz}" step="1" min="0.2"></div></div>`:''}
+      ${shp==='sphere'?`<div class="ctrl" style="margin-top:6px"><label>Radius</label><input type="number" id="spRad" value="${r.rad}" step="0.5" min="0.2"></div>`:''}
+      ${shp==='cyl'?`<div class="grid3" style="margin-top:6px"><div><label>Achse</label><select id="spAxis"><option value="x" ${r.axis==='x'?'selected':''}>X</option><option value="y" ${r.axis==='y'?'selected':''}>Y</option><option value="z" ${(r.axis||'z')==='z'?'selected':''}>Z</option></select></div><div><label>Radius</label><input type="number" id="spRad" value="${r.rad}" step="0.5" min="0.2"></div><div><label>Länge</label><input type="number" id="spLen" value="${r.len}" step="0.5" min="0.2"></div></div>`:''}
+      ${shp==='stl'?`<p class="hint" style="margin:6px 0 0">STL-Sperre „${(r.stl&&r.stl.name)||''}" — nur verschiebbar.</p>`:''}
+    </div>`;
+    const upd=()=>{ r.x=+el('spX').value;r.y=+el('spY').value;r.z=+el('spZ').value;
+      if(el('spSx')){ r.sx=Math.max(0.2,+el('spSx').value);r.sy=Math.max(0.2,+el('spSy').value);r.sz=Math.max(0.2,+el('spSz').value); }
+      if(el('spRad')) r.rad=Math.max(0.2,+el('spRad').value); if(el('spLen')) r.len=Math.max(0.2,+el('spLen').value); if(el('spAxis')) r.axis=el('spAxis').value;
+      drawRegions(); attachGizmo(); onSperrenChanged(); };
+    ['spX','spY','spZ','spSx','spSy','spSz','spRad','spLen'].forEach(id=>{ const e=el(id); if(e)e.addEventListener('change',upd); });
+    { const e=el('spAxis'); if(e)e.addEventListener('change',upd); }
+    { const e=el('spMode'); if(e)e.addEventListener('change',()=>{ r.mode=e.value; renderSperrList(); drawRegions(); onSperrenChanged(); }); }
+    return; }
+  el('regEd').innerHTML=`<div style="margin-top:10px;padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#141b22">
+    <div style="font-size:12px;color:var(--accent);margin-bottom:6px">${isF?'Kraft '+(sel.idx+1):'Lager '+(sel.idx+1)}</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;font-size:12px">Form: <select id="rShape" style="flex:1"><option value="box" ${r.shape!=='cyl'?'selected':''}>Box</option><option value="cyl" ${r.shape==='cyl'?'selected':''}>Zylinder (Bohrung/Lager)</option></select></div>
+    <div class="grid3"><div><label class="axX">X</label><input type="number" id="rX" value="${r.x}" step="1"></div><div><label class="axY">Y</label><input type="number" id="rY" value="${r.y}" step="1"></div><div><label class="axZ">Z</label><input type="number" id="rZ" value="${r.z}" step="1"></div></div>
+    <div class="grid3" style="margin-top:6px"><div><label class="axX">Größe X</label><input type="number" id="rSx" value="${r.sx}" step="1" min="0.2"></div><div><label class="axY">Y</label><input type="number" id="rSy" value="${r.sy}" step="1" min="0.2"></div><div><label class="axZ">Z</label><input type="number" id="rSz" value="${r.sz}" step="1" min="0.2"></div></div>
+    ${r.shape==='cyl'?`<div class="grid3" style="margin-top:6px"><div><label>Achse</label><select id="rAxis"><option value="x" ${r.axis==='x'?'selected':''}>X</option><option value="y" ${r.axis==='y'?'selected':''}>Y</option><option value="z" ${(r.axis||'z')==='z'?'selected':''}>Z</option></select></div><div><label>Radius</label><input type="number" id="rRad" value="${r.rad||3}" step="0.5" min="0.2"></div><div><label>Länge</label><input type="number" id="rLen" value="${r.len||3}" step="0.5" min="0.2"></div></div>`:''}
+    ${!isF?`<div style="display:flex;gap:12px;margin-top:7px;font-size:12px;align-items:center">Fest: <label style="display:flex;gap:4px;cursor:pointer"><input type="checkbox" id="rDx" ${r.dofx!==false?'checked':''} style="width:auto">X</label><label style="display:flex;gap:4px;cursor:pointer"><input type="checkbox" id="rDy" ${r.dofy!==false?'checked':''} style="width:auto">Y</label><label style="display:flex;gap:4px;cursor:pointer"><input type="checkbox" id="rDz" ${r.dofz!==false?'checked':''} style="width:auto">Z</label><span style="opacity:.6;margin-left:4px">(alle=fest, eine=Roller)</span></div>`:''}
+    ${isF?`<div class="grid3" style="margin-top:6px"><div><label class="axX">Fx (N)</label><input type="number" id="rFx" value="${r.fx}" step="10"></div><div><label class="axY">Fy</label><input type="number" id="rFy" value="${r.fy}" step="10"></div><div><label class="axZ">Fz</label><input type="number" id="rFz" value="${r.fz}" step="10"></div></div>
+    <div class="ctrl" style="margin-top:6px"><label>Drehmoment um Pfeilachse (Nmm)</label><input type="number" id="rMom" value="${r.mom||0}" step="100"></div>
+    ${r.shape==='cyl'?`<label style="display:flex;gap:6px;margin-top:6px;font-size:12px;cursor:pointer"><input type="checkbox" id="rBear" ${r.bearing?'checked':''} style="width:auto">Lagerring-Last (cosinus über belastete Bohrungshälfte)</label>`:''}`:''}
+  </div>`;
+  const upd=()=>{ r.x=+el('rX').value;r.y=+el('rY').value;r.z=+el('rZ').value; r.sx=Math.max(0.2,+el('rSx').value);r.sy=Math.max(0.2,+el('rSy').value);r.sz=Math.max(0.2,+el('rSz').value);
+    if(el('rRad')){ r.axis=el('rAxis').value; r.rad=Math.max(0.2,+el('rRad').value); r.len=Math.max(0.2,+el('rLen').value); }
+    if(isF){ r.fx=+el('rFx').value;r.fy=+el('rFy').value;r.fz=+el('rFz').value; r.mom=+el('rMom').value; if(el('rBear'))r.bearing=el('rBear').checked; }
+    else { r.dofx=el('rDx').checked; r.dofy=el('rDy').checked; r.dofz=el('rDz').checked; } drawRegions(); attachGizmo(); };
+  ['rX','rY','rZ','rSx','rSy','rSz','rRad','rLen','rFx','rFy','rFz','rMom'].forEach(id=>{ const e=el(id); if(e)e.addEventListener('change',upd); });
+  ['rDx','rDy','rDz','rAxis','rBear'].forEach(id=>{ const e=el(id); if(e)e.addEventListener('change',upd); });
+  { const e=el('rShape'); if(e)e.addEventListener('change',()=>{ r.shape=e.value; if(r.shape==='cyl'){ if(!r.axis)r.axis='z'; if(!r.rad)r.rad=Math.max(2,Math.min(r.sy,r.sz)/2); if(!r.len)r.len=r.sx; } renderRegEd(); drawRegions(); attachGizmo(); }); }
+}
+function selectRegion(kind,idx){ sel={kind,idx}; vecMode=false; el('btnVec').classList.remove('on'); renderRegList(); renderSperrList(); drawRegions(); renderRegEd(); attachGizmo(); }
+el('btnAddSup').addEventListener('click',()=>{ const BY=by*h,BZ=bz*h; sups.push({x:0,y:BY/2,z:BZ/2,sx:1.5*h,sy:BY+2*h,sz:BZ+2*h,dofx:true,dofy:true,dofz:true}); selectRegion('sup',sups.length-1); });
+// Schraube (grounded Bolt): fixierter Zylinder (alle DOFs). Vorspannung = koaxiale Zylinder-Kraft (axial) hinzufügen.
+el('btnAddBolt').addEventListener('click',()=>{ const BY=by*h,BZ=bz*h; sups.push({x:0,y:BY/2,z:BZ/2, shape:'cyl', axis:'x', rad:Math.max(2,h*2), len:Math.max(2,1.5*h), sx:1.5*h,sy:BY,sz:BZ, dofx:true,dofy:true,dofz:true}); selectRegion('sup',sups.length-1); el('sWarn').textContent='Schraube (Zylinder, fest) gesetzt. Für Vorspannung: „＋ Kraft" → Form Zylinder → axiale Kraft.'; });
+el('btnAddFor').addEventListener('click',()=>{ const BX=bx*h,BY=by*h,BZ=bz*h; fors.push({x:BX,y:BY/2,z:BZ/2,sx:1.5*h,sy:BY+2*h,sz:BZ+2*h,fx:0,fy:0,fz:-500,mom:0}); fitVScale(); selectRegion('for',fors.length-1); });
+function clearVec(){ vecMode=false; el('btnVec').classList.remove('on'); }
+el('gzMove').addEventListener('click',()=>{ clearVec(); tControls.setMode('translate'); el('gzMove').classList.add('on'); el('gzScale').classList.remove('on'); drawRegions(); attachGizmo(); });
+el('gzScale').addEventListener('click',()=>{ clearVec(); tControls.setMode('scale'); el('gzScale').classList.add('on'); el('gzMove').classList.remove('on'); drawRegions(); attachGizmo(); });
+el('btnVec').addEventListener('click',()=>{ if(!(sel&&sel.kind==='for')){ if(!fors.length)return; sel={kind:'for',idx:0}; }
+  vecMode=!vecMode; el('btnVec').classList.toggle('on',vecMode);
+  if(vecMode){ el('gzMove').classList.remove('on'); el('gzScale').classList.remove('on'); } else tControls.setMode('translate');
+  renderRegList(); drawRegions(); renderRegEd(); attachGizmo(); });
+el('btn2pt').addEventListener('click',()=>{ if(!(sel&&sel.kind==='for')){ if(!fors.length)return; sel={kind:'for',idx:0}; renderRegList(); drawRegions(); renderRegEd(); }
+  twoPt = twoPt ? null : []; el('btn2pt').classList.toggle('on',!!twoPt); renderer.domElement.style.cursor=twoPt?'crosshair':''; });
+function pickPoint(ray){ const rh=ray.intersectObject(surfMesh,false); if(rh.length) return [rh[0].point.x,rh[0].point.y,rh[0].point.z];
+  const o=ray.ray.origin,d=ray.ray.direction, zc=bz*h/2; if(Math.abs(d.z)<1e-6) return [target.x,target.y,zc]; const t=(zc-o.z)/d.z; return [o.x+d.x*t,o.y+d.y*t,zc]; }
+function flowRay(e){ const rect=renderer.domElement.getBoundingClientRect(), ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1); const ray=new THREE.Raycaster(); ray.setFromCamera(ndc,camera); return ray; }
+renderer.domElement.addEventListener('click',e=>{ if(moved||tControls.dragging)return;
+  if(flowDelMode){ handleFlowDelete(e); return; }
+  if(flowDrawMode){ const pt=pickPoint(flowRay(e)); if(pt){ drawBuf.push(pt); updateDrawPreview(); el('domInfo').textContent='Zeichnen: '+drawBuf.length+' Punkte — Doppelklick beendet die Linie, Esc verwirft.'; } return; }
+  if(flowMoveMode){ const r=flowRay(e), o=r.ray.origin, d=r.ray.direction;
+    if(moveSel<0){ const pk=window.FlowTools&&FlowTools.pickLine(rawFlowLines||[],[o.x,o.y,o.z],[d.x,d.y,d.z],null); if(pk){ moveSel=pk.idx; rebuildFlow(); el('domInfo').textContent='Linie '+(moveSel+1)+' gewählt — jetzt Zielpunkt anklicken.'; } }
+    else { const pt=pickPoint(r); if(pt && rawFlowLines&&rawFlowLines[moveSel]){ const c=FlowTools.centroid(rawFlowLines[moveSel]); rawFlowLines[moveSel]=FlowTools.translateLine(rawFlowLines[moveSel],[pt[0]-c[0],pt[1]-c[1],pt[2]-c[2]]); moveSel=-1; rebuildFlow(); el('domInfo').textContent='Linie verschoben.'; } }
+    return; }
+  const rect=renderer.domElement.getBoundingClientRect(), ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
+  const ray=new THREE.Raycaster(); ray.setFromCamera(ndc,camera);
+  if(twoPt){ const pt=pickPoint(ray); if(pt){ twoPt.push(pt);
+    if(twoPt.length>=2){ const r=(sel&&sel.kind==='for')?curReg():fors[0]; if(r){ r.fx=+((twoPt[1][0]-twoPt[0][0])/VSCALE).toFixed(1); r.fy=+((twoPt[1][1]-twoPt[0][1])/VSCALE).toFixed(1); r.fz=+((twoPt[1][2]-twoPt[0][2])/VSCALE).toFixed(1); }
+      twoPt=null; el('btn2pt').classList.remove('on'); renderer.domElement.style.cursor=''; drawRegions(); renderRegEd(); } } return; }
+  const hits=ray.intersectObjects(regGroup.children,false);
+  if(hits.length){ const o=hits[0].object;
+    if(o.userData.tip){ sel={kind:'for',idx:o.userData.idx}; vecMode=true; el('btnVec').classList.add('on'); el('gzMove').classList.remove('on'); el('gzScale').classList.remove('on'); renderRegList(); drawRegions(); renderRegEd(); attachGizmo(); return; }
+    if(o.userData.kind!=null){ selectRegion(o.userData.kind,o.userData.idx); return; } }
+});
+
+// ---------------- Inside-Test (STL-Bauraum) ----------------
+function localTris(geom){ const p=geom.attributes.position,n=p.count,t=[]; for(let i=0;i+2<n;i+=3) t.push([[p.getX(i),p.getY(i),p.getZ(i)],[p.getX(i+1),p.getY(i+1),p.getZ(i+1)],[p.getX(i+2),p.getY(i+2),p.getZ(i+2)]]); return t; }
+function buildBuckets(tris,G){ let mnY=1e9,mnZ=1e9,mxY=-1e9,mxZ=-1e9; for(const t of tris)for(const p of t){if(p[1]<mnY)mnY=p[1];if(p[1]>mxY)mxY=p[1];if(p[2]<mnZ)mnZ=p[2];if(p[2]>mxZ)mxZ=p[2];}
+  const cy=(mxY-mnY)/G||1,cz=(mxZ-mnZ)/G||1,bk=Array.from({length:G*G},()=>[]); const gi=(y,z)=>{let a=Math.floor((y-mnY)/cy),b=Math.floor((z-mnZ)/cz);a=Math.max(0,Math.min(G-1,a));b=Math.max(0,Math.min(G-1,b));return[a,b];};
+  tris.forEach((t,ti)=>{const y0=Math.min(t[0][1],t[1][1],t[2][1]),y1=Math.max(t[0][1],t[1][1],t[2][1]),z0=Math.min(t[0][2],t[1][2],t[2][2]),z1=Math.max(t[0][2],t[1][2],t[2][2]);const[a0,b0]=gi(y0,z0),[a1,b1]=gi(y1,z1);for(let a=a0;a<=a1;a++)for(let b=b0;b<=b1;b++)bk[a*G+b].push(ti);}); return {buckets:bk,G,gi}; }
+function insideMesh(p,tris,bk){ const y=p[1]+1.7e-4,z=p[2]+2.3e-4;const[a,b]=bk.gi(y,z);const list=bk.buckets[a*bk.G+b];let cnt=0;   /* Fix: Y/Z-Epsilon gegen Kanten-Degeneration auf dem achsen-ausgerichteten Voxelgitter (STL-Bauraum + STL-Sperren) */
+  for(const ti of list){const t=tris[ti],A=t[0],B=t[1],C=t[2];const d=(B[1]-A[1])*(C[2]-A[2])-(C[1]-A[1])*(B[2]-A[2]);if(Math.abs(d)<1e-12)continue;
+    const w1=((B[1]-y)*(C[2]-z)-(C[1]-y)*(B[2]-z))/d,w2=((C[1]-y)*(A[2]-z)-(A[1]-y)*(C[2]-z))/d,w3=1-w1-w2;if(w1<0||w2<0||w3<0)continue;const X=w1*A[0]+w2*B[0]+w3*C[0];if(X>p[0])cnt++;}
+  return (cnt&1)===1; }
+// Gemeinsame Bauraum-STL-Importlogik (Datei-Dialog UND Settings-Restore, siehe applyAll()) — Rohdaten (buf)
+// werden mitgespeichert (stlData.raw), damit die STL beim Laden einer Projektdatei erneut eingebettet werden kann.
+function importVollteilStlBuffer(buf,name){
+  const geom=new THREE.STLLoader().parse(buf); geom.computeBoundingBox(); const bb=geom.boundingBox; geom.translate(-bb.min.x,-bb.min.y,-bb.min.z);
+  el('szx').value=Math.max(2,Math.round(bb.max.x-bb.min.x)); el('szy').value=Math.max(2,Math.round(bb.max.y-bb.min.y)); el('szz').value=Math.max(2,Math.round(bb.max.z-bb.min.z));
+  const md=Math.max(bb.max.x-bb.min.x,bb.max.y-bb.min.y,bb.max.z-bb.min.z); el('hv').value=Math.max(0.2,+(md/55).toFixed(2));  // ~55 Voxel über die längste Kante
+  const tris=localTris(geom); stlData={tris,bk:buildBuckets(tris,28), name, raw:buf};
+  el('domInfo').textContent='Bauraum-STL: '+stlData.name+' (aktive Voxel im Volumen).';
+}
+el('btnStl').addEventListener('click',()=>el('stlFile').click());
+el('stlFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=ev=>{ try{ importVollteilStlBuffer(ev.target.result, f.name.replace(/\.stl$/i,'')); rebuildDomain();
+    }catch(err){ el('sWarn').textContent='STL-Fehler: '+err.message; } }; rd.readAsArrayBuffer(f); e.target.value=''; });
+el('btnStlClr').addEventListener('click',()=>{ stlData=null; el('domInfo').textContent='Box-Bauraum.'; rebuildDomain(); });
+
+// ================= Bauraumsperren (No-Go-Zonen) =================
+let sperren=[]; let cancelCalc=false;
+function inSphere(p,s){ const dx=p[0]-s.x,dy=p[1]-s.y,dz=p[2]-s.z,R=s.rad||1; return dx*dx+dy*dy+dz*dz<=R*R; }
+function inSperre(p,mode){ for(const s of sperren){ if(mode && (s.mode||'leer')!==mode) continue;
+    if(s.shape==='sphere'){ if(inSphere(p,s)) return true; }
+    else if(s.shape==='cyl'){ if(inCyl(p,s)) return true; }
+    else if(s.shape==='stl'){ if(s.stl && insideMesh([p[0]-s.x,p[1]-s.y,p[2]-s.z], s.stl.tris, s.stl.bk)) return true; }
+    else { if(Math.abs(p[0]-s.x)<=s.sx/2+1e-6&&Math.abs(p[1]-s.y)<=s.sy/2+1e-6&&Math.abs(p[2]-s.z)<=s.sz/2+1e-6) return true; }
+  } return false; }
+function drawSperren(){
+  sperren.forEach((s,idx)=>{ const isS=(sel&&sel.kind==='sperre'&&sel.idx===idx); let geo;
+    if(s.shape==='sphere') geo=new THREE.SphereGeometry(Math.max(s.rad||3,0.2),18,12);
+    else if(s.shape==='cyl') geo=new THREE.CylinderGeometry(Math.max(s.rad||3,0.2),Math.max(s.rad||3,0.2),Math.max(s.len||3,0.2),20);
+    else if(s.shape==='stl' && s.stl){ geo=new THREE.BufferGeometry(); const pos=[]; for(const t of s.stl.tris){ for(const v of t) pos.push(v[0],v[1],v[2]); } geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); geo.computeVertexNormals(); }
+    else geo=new THREE.BoxGeometry(Math.max(s.sx||4,0.2),Math.max(s.sy||4,0.2),Math.max(s.sz||4,0.2));
+    const m=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:(s.mode==='voll'?0x4fd86a:0xff5544),transparent:true,opacity:isS?0.42:0.2,depthWrite:false}));
+    m.position.set(s.x,s.y,s.z);
+    if(s.shape==='cyl'){ const ax=s.axis||'z'; if(ax==='x')m.rotation.z=Math.PI/2; else if(ax==='z')m.rotation.x=Math.PI/2; }
+    m.userData={kind:'sperre',idx}; regGroup.add(m); });
+}
+function renderSperrList(){ const box=el('sperrList'); if(!box)return;
+  const lab=s=> s.shape==='sphere'?'Kugel':s.shape==='cyl'?'Zylinder':s.shape==='stl'?('STL '+((s.stl&&s.stl.name)||'')):'Quader';
+  let hh=''; sperren.forEach((s,i)=>{ hh+=`<div class="arow${sel&&sel.kind==='sperre'&&sel.idx===i?' sel':''}" data-sp="${i}" style="justify-content:space-between"><span><span class="dot" style="background:${(s.mode==='voll')?'#4fd86a':'#ff5544'}"></span>Sperre ${i+1}: ${lab(s)}${s.mode==='voll'?' (voll)':''}</span><span data-spdel="${i}" style="cursor:pointer;color:#ff8a7a">✕</span></div>`; });
+  box.innerHTML=hh;
+  box.querySelectorAll('.arow').forEach(rr=> rr.addEventListener('click',()=>selectRegion('sperre',+rr.getAttribute('data-sp'))));
+  box.querySelectorAll('[data-spdel]').forEach(x=> x.addEventListener('click',ev=>{ ev.stopPropagation(); const i=+x.getAttribute('data-spdel'); sperren.splice(i,1);
+    if(sel&&sel.kind==='sperre'&&sel.idx===i){sel=null;tControls.detach();} else if(sel&&sel.kind==='sperre'&&sel.idx>i) sel.idx--;
+    renderSperrList(); onSperrenChanged(); renderRegEd(); }));
+}
+function addSperre(shape){ const BX=bx*h,BY=by*h,BZ=bz*h;
+  let s; if(shape==='sphere') s={shape:'sphere',x:BX/2,y:BY/2,z:BZ/2,rad:Math.min(BX,BY,BZ)/4};
+  else if(shape==='cyl') s={shape:'cyl',x:BX/2,y:BY/2,z:BZ/2,axis:'z',rad:Math.min(BX,BY)/4,len:BZ/2};
+  else s={shape:'box',x:BX/2,y:BY/2,z:BZ/2,sx:BX/3,sy:BY/3,sz:BZ/3};
+  s.mode='leer'; sperren.push(s); selectRegion('sperre',sperren.length-1); onSperrenChanged(); }
+el('btnSpBox').addEventListener('click',()=>addSperre('box'));
+el('btnSpSph').addEventListener('click',()=>addSperre('sphere'));
+el('btnSpCyl').addEventListener('click',()=>addSperre('cyl'));
+el('btnSpStl').addEventListener('click',()=>el('spStlFile').click());
+// Gemeinsame Sperren-STL-Importlogik (Datei-Dialog UND Settings-Restore) — Rohdaten (buf) landen in
+// s.stl.raw fuer die Base64-Einbettung in collectAll() (siehe *.bio Phase 2).
+function importSperreStlBuffer(buf,name){
+  const geom=new THREE.STLLoader().parse(buf); geom.computeBoundingBox(); const bb=geom.boundingBox;
+  const cx=(bb.min.x+bb.max.x)/2,cy=(bb.min.y+bb.max.y)/2,cz=(bb.min.z+bb.max.z)/2; geom.translate(-cx,-cy,-cz);   // Tris auf Ursprung zentrieren
+  const tris=localTris(geom), BX=bx*h,BY=by*h,BZ=bz*h;
+  const s={shape:'stl',mode:'leer',x:BX/2,y:BY/2,z:BZ/2, sx:bb.max.x-bb.min.x,sy:bb.max.y-bb.min.y,sz:bb.max.z-bb.min.z, stl:{tris,bk:buildBuckets(tris,28),name,raw:buf}};
+  sperren.push(s); return s;
+}
+el('spStlFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=ev=>{ try{ importSperreStlBuffer(ev.target.result, f.name.replace(/\.stl$/i,''));
+      selectRegion('sperre',sperren.length-1); onSperrenChanged();
+    }catch(err){ el('sWarn').textContent='STL-Sperre-Fehler: '+err.message; } }; rd.readAsArrayBuffer(f); e.target.value=''; });
+
+// ---------------- Farbskala ----------------
+function ramp(t){ t=clamp(t,0,1); const stops=[[0.23,0.43,0.65],[0.31,0.82,0.65],[0.91,0.77,0.35],[0.88,0.4,0.31]];
+  const x=t*(stops.length-1), i=Math.min(Math.floor(x),stops.length-2), f=x-i, a=stops[i],b=stops[i+1];
+  return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f]; }
+
+// ---------------- Domäne (neu) ----------------
+function rebuildDomain(){ readDom(); fitVScale(); buildMask(); buildSurface(); drawBox(); drawRegions(); if(stressGroup)stressGroup.clear(); if(typeof flowGroup!=='undefined'&&flowGroup){flowGroup.clear();flowLines=null;rawFlowLines=null;flowDel=new Set();flowDelMode=false;flowMoveMode=false;flowDrawMode=false;drawBuf=[];moveSel=-1;if(drawPrevGroup)drawPrevGroup.clear();} dirty=true;
+  let c=0; for(let n=0;n<mask.length;n++) c+=mask[n];
+  el('sEl').textContent=c.toLocaleString('de');
+  const N=(bx+1)*(by+1)*(bz+1); el('sDof').textContent=(3*N).toLocaleString('de');
+  el('domInfo').textContent=`Gitter ${bx}×${by}×${bz} (Voxel ${h} mm). ${stlData?'STL-Bauraum: '+stlData.name+'. ':''}Physische Größe fest, kleinere Voxelgröße = feineres Netz.`;
+  el('sWarn').textContent = c>250000 ? 'Sehr viele Elemente — Lösen kann einige Sekunden dauern (Voxelgröße erhöhen).' : ''; }
+
+// ---------------- Lasten (Kraft oder Drehmoment um die Pfeilachse) ----------------
+function forcesFor(fr){ const NX=bx+1,NY=by+1,NZ=bz+1;
+  const nodePos=n=>{const i=n%NX,j=Math.floor(n/NX)%NY,k=Math.floor(n/(NX*NY));return[i*h,j*h,k*h];};
+  const ns=[]; for(let n=0;n<NX*NY*NZ;n++) if(inReg(nodePos(n),fr)) ns.push(n);
+  if(!ns.length) return [];
+  const out=[];
+  if(fr.mom && (fr.fx||fr.fy||fr.fz)){   // Drehmoment: tangentiale Kräfte um Pfeilachse (radialer Hebel)
+    const L=Math.hypot(fr.fx,fr.fy,fr.fz)||1, a=[fr.fx/L,fr.fy/L,fr.fz/L], c=[fr.x,fr.y,fr.z]; let sum=0; const tv=[];
+    for(const n of ns){ const p=nodePos(n), d=[p[0]-c[0],p[1]-c[1],p[2]-c[2]], dp=d[0]*a[0]+d[1]*a[1]+d[2]*a[2],
+      rp=[d[0]-dp*a[0],d[1]-dp*a[1],d[2]-dp*a[2]], t=[a[1]*rp[2]-a[2]*rp[1],a[2]*rp[0]-a[0]*rp[2],a[0]*rp[1]-a[1]*rp[0]];
+      sum+=rp[0]*rp[0]+rp[1]*rp[1]+rp[2]*rp[2]; tv.push([n,t]); }
+    if(sum<1e-9) return [];
+    for(const [n,t] of tv) out.push([n,[fr.mom*t[0]/sum, fr.mom*t[1]/sum, fr.mom*t[2]/sum]]);
+  } else if(fr.shape==='cyl' && fr.bearing && (fr.fx||fr.fy||fr.fz)){   // Lagerring-Last: cosinus-verteilt über die belastete Bohrungshälfte
+    const F=Math.hypot(fr.fx,fr.fy,fr.fz)||1, d=[fr.fx/F,fr.fy/F,fr.fz/F], ax=fr.axis||'z';
+    const rvec=p=>{ if(ax==='x')return[0,p[1]-fr.y,p[2]-fr.z]; if(ax==='y')return[p[0]-fr.x,0,p[2]-fr.z]; return[p[0]-fr.x,p[1]-fr.y,0]; };
+    let sum=0; const w=[];
+    for(const n of ns){ const r=rvec(nodePos(n)), rl=Math.hypot(r[0],r[1],r[2])||1, dot=(r[0]*d[0]+r[1]*d[1]+r[2]*d[2])/rl, ww=Math.max(0,dot); sum+=ww; w.push([n,ww]); }
+    if(sum<1e-9){ const c=ns.length; for(const n of ns) out.push([n,[fr.fx/c,fr.fy/c,fr.fz/c]]); }
+    else for(const [n,ww] of w) out.push([n,[fr.fx*ww/sum, fr.fy*ww/sum, fr.fz*ww/sum]]);
+  } else { const c=ns.length; for(const n of ns) out.push([n,[fr.fx/c,fr.fy/c,fr.fz/c]]); }
+  return out;
+}
+// Eigengewicht als Knotenkräfte (spezifisches Gewicht γ N/mm³, −Z). activeFn(i,j,k)=aktiv, densFn optional (Masse ∝ Dichte).
+function gravForces(activeFn, densFn){ if(!el('gravOn')||!el('gravOn').checked) return [];
+  const g=+el('gravG').value; if(!(g>0)) return [];
+  const NX=bx+1,NY=by+1,NZ=bz+1, NN=NX*NY*NZ, nd=(i,j,k)=>(k*NY+j)*NX+i, V=h*h*h, fz=new Float64Array(NN);
+  for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ if(activeFn&&!activeFn(i,j,k))continue; const rel=densFn?densFn(i,j,k):1; const fe=-g*V*rel/8;
+    fz[nd(i,j,k)]+=fe;fz[nd(i+1,j,k)]+=fe;fz[nd(i+1,j+1,k)]+=fe;fz[nd(i,j+1,k)]+=fe;fz[nd(i,j,k+1)]+=fe;fz[nd(i+1,j,k+1)]+=fe;fz[nd(i+1,j+1,k+1)]+=fe;fz[nd(i,j+1,k+1)]+=fe; }
+  const out=[]; for(let n=0;n<NN;n++) if(fz[n]!==0) out.push([n,[0,0,fz[n]]]); return out; }
+// Punkt-in-Region: Box oder Zylinder (r.shape='cyl', Achse r.axis 'x'|'y'|'z', r.rad, r.len).
+function inCyl(p,r){ const ax=r.axis||'z'; let axial,rad2; const R=r.rad||1, L=r.len||1;
+  if(ax==='x'){ axial=p[0]-r.x; rad2=(p[1]-r.y)*(p[1]-r.y)+(p[2]-r.z)*(p[2]-r.z); }
+  else if(ax==='y'){ axial=p[1]-r.y; rad2=(p[0]-r.x)*(p[0]-r.x)+(p[2]-r.z)*(p[2]-r.z); }
+  else { axial=p[2]-r.z; rad2=(p[0]-r.x)*(p[0]-r.x)+(p[1]-r.y)*(p[1]-r.y); }
+  return Math.abs(axial)<=L/2+1e-6 && rad2<=R*R+1e-6; }
+function inReg(p,r){ return r.shape==='cyl' ? inCyl(p,r)
+  : (Math.abs(p[0]-r.x)<=r.sx/2+1e-6 && Math.abs(p[1]-r.y)<=r.sy/2+1e-6 && Math.abs(p[2]-r.z)<=r.sz/2+1e-6); }
+// Per-DOF-Fixierung aus den Lagern (dofx/dofy/dofz; Default alle fest). Uint8(3*NN). Zylinder+radiale DOFs = Bearing.
+function buildFixedDof(){ const NX=bx+1,NY=by+1,NZ=bz+1, NN=NX*NY*NZ, fd=new Uint8Array(3*NN);
+  const nodePos=n=>{const i=n%NX,j=Math.floor(n/NX)%NY,k=Math.floor(n/(NX*NY));return[i*h,j*h,k*h];};
+  for(let n=0;n<NN;n++){ const p=nodePos(n); for(const s of sups){ if(inReg(p,s)){ if(s.dofx!==false)fd[3*n]=1; if(s.dofy!==false)fd[3*n+1]=1; if(s.dofz!==false)fd[3*n+2]=1; } } }
+  return fd; }
+// #35: Per-DOF-Fixierung für einen beliebigen Lager-Satz (nicht nur den aktiven Fall)
+function buildFixedDofFor(supArr){ const NX=bx+1,NY=by+1,NZ=bz+1, NN=NX*NY*NZ, fd=new Uint8Array(3*NN);
+  const nodePos=n=>{const i=n%NX,j=Math.floor(n/NX)%NY,k=Math.floor(n/(NX*NY));return[i*h,j*h,k*h];};
+  for(let n=0;n<NN;n++){ const p=nodePos(n); for(const s of supArr){ if(inReg(p,s)){ if(s.dofx!==false)fd[3*n]=1; if(s.dofy!==false)fd[3*n+1]=1; if(s.dofz!==false)fd[3*n+2]=1; } } }
+  return fd; }
+// #35: Solve-Daten (Kräfte + Fixierung + Gewicht) für EINEN Lastfall assemblieren
+function lcAssemble(cObj){ const NX=bx+1,NY=by+1,NZ=bz+1, NN=NX*NY*NZ;
+  const nodePos=n=>{const i=n%NX,j=Math.floor(n/NX)%NY,k=Math.floor(n/(NX*NY));return[i*h,j*h,k*h];};
+  const inBox=(p,r)=>Math.abs(p[0]-r.x)<=r.sx/2+1e-6&&Math.abs(p[1]-r.y)<=r.sy/2+1e-6&&Math.abs(p[2]-r.z)<=r.sz/2+1e-6;
+  let forces=[]; for(const f of (cObj.fors||[])) forces=forces.concat(forcesFor(f));
+  const fixed=new Uint8Array(NN); for(let n=0;n<NN;n++){ const p=nodePos(n); if((cObj.sups||[]).some(s=>inBox(p,s))) fixed[n]=1; }
+  const fNodes=new Int32Array(forces.length), fVec=new Float32Array(forces.length*3);
+  for(let t=0;t<forces.length;t++){ fNodes[t]=forces[t][0]; fVec[3*t]=forces[t][1][0]; fVec[3*t+1]=forces[t][1][1]; fVec[3*t+2]=forces[t][1][2]; }
+  return { forces, fixed, fixedDof:buildFixedDofFor(cObj.sups||[]), fNodes, fVec, w:Math.max(0,(cObj.w!=null?+cObj.w:1)) }; }
+// Nachgiebigkeit c = F·u eines Lastfalls (für Worst-Case-Gewichtung)
+function lcCompliance(u,fNodes,fVec){ let c=0; for(let t=0;t<fNodes.length;t++){ const n=fNodes[t]; c+=fVec[3*t]*u[3*n]+fVec[3*t+1]*u[3*n+1]+fVec[3*t+2]*u[3*n+2]; } return c; }
+// #35: Aggregations-Gewichte über die Lastfälle. 'sum' = gewichtete Summe (feste w); 'ks' = Worst-Case (adaptiv, Fall mit größtem c bekommt Gewicht).
+function lcAggWeights(cL, LC){ const M=cL.length; let uw=LC.map(L=>Math.max(0,L.w)); let sw=0; for(const w of uw) sw+=w; if(!(sw>0)){ uw=uw.map(()=>1); sw=M; }
+  const mode=(el('aggMode')&&el('aggMode').value)||'ks';
+  if(mode==='sum' || M<=1) return uw.map(w=>w/sw);
+  const rho=clamp(+((el('aggRho')&&el('aggRho').value)||18),1,200); let cmax=1e-30; for(const c of cL) if(c>cmax)cmax=c;
+  const e=cL.map((c,i)=>uw[i]*Math.exp(rho*(c/cmax-1))); let es=0; for(const v of e) es+=v; if(!(es>0)) return uw.map(w=>w/sw);
+  return e.map(v=>v/es); }
+// ---------------- Lösen ----------------
+let lastRes=null;
+// Dichte Felder (vg=vM-Gitter, umag=Verschiebungsbetrag je Knoten) aus dem schlanken FEM-Ergebnis (res.vm/res.u)
+// ableiten — ausgelagert (2026-07-12, *.bio Phase 2), damit sowohl solveFEA() als auch das Wiederherstellen
+// aus einer Projektdatei (applyAll()) dieselbe Logik nutzen, ohne die (grossen) dichten Arrays selbst speichern
+// zu muessen: sie sind reine Ableitungen aus res.vm/res.u + der aktuellen Voxelaufloesung (bx/by/bz/h).
+function deriveResFields(res){
+  const NX=bx+1,NY=by+1,NZ=bz+1;
+  const vg=new Float32Array(bx*by*bz).fill(NaN); let vmax=0;
+  for(const e of res.vm){ vg[vidx(e.i,e.j,e.k)]=e.vm; if(e.vm>vmax)vmax=e.vm; }
+  let dmax=0; const NN=NX*NY*NZ, umag=new Float32Array(NN);
+  for(let n=0;n<NN;n++){ const m=Math.hypot(res.u[3*n],res.u[3*n+1],res.u[3*n+2]); umag[n]=m; if(m>dmax)dmax=m; }
+  res.vg=vg; res.vmax=vmax; res.umag=umag; res.dmax=dmax;
+}
+function solveFEA(){
+  showStruktur();
+  readDom(); if(!mask) buildMask();
+  const Emod=+el('Emod').value, nu=+el('nu').value;
+  const NX=bx+1,NY=by+1,NZ=bz+1;
+  const nodePos=n=>{ const i=n%NX, j=Math.floor(n/NX)%NY, k=Math.floor(n/(NX*NY)); return [i*h,j*h,k*h]; };
+  const inBox=(p,r)=> Math.abs(p[0]-r.x)<=r.sx/2+1e-6 && Math.abs(p[1]-r.y)<=r.sy/2+1e-6 && Math.abs(p[2]-r.z)<=r.sz/2+1e-6;
+  // Kräfte aller Kraft-Regionen sammeln (+ optional Eigengewicht über die aktuelle Struktur)
+  let forces=[]; for(const f of fors) forces=forces.concat(forcesFor(f));
+  forces=forces.concat(gravForces((i,j,k)=>!!(mask&&mask[vidx(i,j,k)]), null));
+  if(!forces.length){ el('sWarn').textContent='Kraft/Moment (oder Eigengewicht) trifft keine Knoten.'; return; }
+  if(!sups.length){ el('sWarn').textContent='Kein Lager definiert — „＋ Lager".'; return; }
+  const fixedDof=buildFixedDof();
+  let nFix=0; for(let d=0;d<fixedDof.length;d++) nFix+=fixedDof[d];
+  if(nFix===0){ el('sWarn').textContent='Lager trifft keine Knoten — Region auf eine Bauteilfläche legen.'; return; }
+  el('btnSolve').textContent='⏳ rechne…'; el('btnSolve').disabled=true; el('sWarn').textContent='';
+  setTimeout(()=>{ try{
+    const t0=performance.now();
+    const res=FEM.solve({nx:bx,ny:by,nz:bz,h,E:Emod,nu, active, fixedDof, forces, maxIter:5000, tol:1e-6});
+    lastRes=res; deriveResFields(lastRes);
+    applyField(); drawStress();
+    el('sIt').textContent=res.iter; el('sRes').textContent=res.resid.toExponential(1);
+    el('sMax').textContent=res.vmax.toFixed(2); el('sDisp').textContent=res.dmax.toFixed(4);
+    el('btnSolve').textContent='✓ gelöst ('+((performance.now()-t0)/1000).toFixed(2)+'s)';
+  }catch(err){ el('btnSolve').textContent='⚠ Fehler'; el('sWarn').textContent=err.message; }
+    el('btnSolve').disabled=false; setTimeout(()=>el('btnSolve').textContent='🔬 Lösen (FEM)',2500);
+  },20);
+}
+function applyField(){ if(!lastRes) return;
+  const g=surfMesh.geometry, colAttr=g.attributes.color, posAttr=g.attributes.position;
+  const useVm=el('field').value==='vm'; const mx=useVm?(lastRes.vmax||1):(lastRes.dmax||1);
+  for(let f=0;f<faceVox.length;f++){ let val;
+    if(useVm){ val=lastRes.vg[faceVox[f]]; if(isNaN(val))val=0; } else { val=lastRes.umag[vertNode[f]]; }
+    const c=ramp(val/(mx||1)); colAttr.array[3*f]=c[0]; colAttr.array[3*f+1]=c[1]; colAttr.array[3*f+2]=c[2]; }
+  colAttr.needsUpdate=true;
+  // Verformung
+  const ds=+el('defScale').value; el('vdef').textContent=ds;
+  for(let f=0;f<vertNode.length;f++){ const n=vertNode[f];
+    posAttr.array[3*f]  =basePos[3*f]  + (ds?lastRes.u[3*n]*ds:0);
+    posAttr.array[3*f+1]=basePos[3*f+1]+ (ds?lastRes.u[3*n+1]*ds:0);
+    posAttr.array[3*f+2]=basePos[3*f+2]+ (ds?lastRes.u[3*n+2]*ds:0); }
+  posAttr.needsUpdate=true; g.computeVertexNormals();
+  el('legend').style.display='block'; el('lgTit').textContent=useVm?'von Mises (MPa)':'|u| (mm)';
+  el('lgMin').textContent='0'; el('lgMax').textContent=(useVm?(lastRes.vmax||0):(lastRes.dmax||0)).toFixed(useVm?1:3);
+  dirty=true;
+}
+// Hauptspannungs-Glyphen (Lastpfad-Feld): je Element die betragsgrößte Hauptrichtung
+function drawStress(){ stressGroup.clear();
+  if(!el('showStress').checked || !lastRes || !lastRes.vm){ dirty=true; return; }
+  const vm=lastRes.vm; let pmax=1e-9;
+  for(const e of vm){ if(!e.pv) continue; const a=Math.max(Math.abs(e.pv[0]),Math.abs(e.pv[1]),Math.abs(e.pv[2])); if(a>pmax)pmax=a; }
+  const step=Math.max(1,Math.floor(vm.length/1500)), pos=[], col=[], Lh=0.46*h;
+  for(let n=0;n<vm.length;n+=step){ const e=vm[n]; if(!e.pv) continue;
+    let mi=0,ma=Math.abs(e.pv[0]); for(let t=1;t<3;t++){ const av=Math.abs(e.pv[t]); if(av>ma){ma=av;mi=t;} }
+    const val=e.pv[mi], d=e.pd[mi], cx=(e.i+.5)*h, cy=(e.j+.5)*h, cz=(e.k+.5)*h, L=Lh*Math.min(1,ma/pmax)+0.12*h;
+    pos.push(cx-d[0]*L,cy-d[1]*L,cz-d[2]*L, cx+d[0]*L,cy+d[1]*L,cz+d[2]*L);
+    const c = val>=0 ? [0.88,0.4,0.31] : [0.23,0.43,0.65];
+    col.push(c[0],c[1],c[2], c[0],c[1],c[2]); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  stressGroup.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({vertexColors:true})));
+  dirty=true;
+}
+el('showStress').addEventListener('change',drawStress);
+el('btnSolve').addEventListener('click',solveFEA);
+el('field').addEventListener('change',applyField);
+el('defScale').addEventListener('change',applyField);
+['szx','szy','szz','hv'].forEach(id=>el(id).addEventListener('change',rebuildDomain));
+const MATS={stahl:[210000,0.30],alu:[70000,0.33],holz:[11000,0.40],stein:[50000,0.25],glas:[70000,0.22],polyamid:[2000,0.39],gummi:[10,0.47]};
+el('mat').addEventListener('change',()=>{ const m=MATS[el('mat').value]; if(m){ el('Emod').value=m[0]; el('nu').value=m[1]; } });
+
+// ---------------- FE-Solve im Worker (off-thread) mit Hauptthread-Fallback ----------------
+let femWorker=null, workerReady=false, _wjResolve=null, _bkResolve=null, _boResolve=null, _boProgress=null;
+try{ femWorker=new Worker('mattheck_worker.js');
+  femWorker.onmessage=ev=>{ const m=ev.data; if(m.type==='pong'){ workerReady=true; }
+    else if(m.type==='solved' && _wjResolve){ const r=_wjResolve; _wjResolve=null; r(m); }
+    else if(m.type==='buckled' && _bkResolve){ const r=_bkResolve; _bkResolve=null; r(m); }
+    else if(m.type==='buckleopt-progress'){ if(_boProgress) _boProgress(m.it, m.blf); }
+    else if(m.type==='buckleopt' && _boResolve){ const r=_boResolve; _boResolve=null; r(m); } };
+  femWorker.onerror=()=>{ workerReady=false; femWorker=null; };
+  femWorker.postMessage({cmd:'ping'});
+}catch(e){ femWorker=null; }
+function _solveLocal(p){
+  const bx2=p.bx,by2=p.by,bz2=p.bz, Ntot=bx2*by2*bz2, vi=(i,j,k)=>(k*by2+j)*bx2+i;
+  const active2=(i,j,k)=> i>=0&&j>=0&&k>=0&&i<bx2&&j<by2&&k<bz2 && p.dom[vi(i,j,k)]===1;
+  const isFixed=n=> p.fixed[n]===1;
+  const forces=[]; for(let t=0;t<p.fNodes.length;t++) forces.push([p.fNodes[t],[p.fVec[3*t],p.fVec[3*t+1],p.fVec[3*t+2]]]);
+  const opts={nx:bx2,ny:by2,nz:bz2,h:p.h,E:p.E,nu:p.nu, active:active2, isFixed, forces, maxIter:p.maxIter||2000, tol:p.tol||1e-4};
+  if(p.densArr) opts.dens=(i,j,k)=>{ const r=p.densArr[vi(i,j,k)]; return r*r*r; };
+  if(p.u0) opts.u0=p.u0;
+  const res=FEM.solve(opts);
+  const vm=new Float32Array(Ntot), se=new Float32Array(Ntot);
+  for(const ee of res.vm){ const v=vi(ee.i,ee.j,ee.k); vm[v]=ee.vm; se[v]=ee.se; }
+  return {u:res.u, vm, se, iter:res.iter, resid:res.resid};
+}
+function solveWorker(p){
+  if(femWorker && workerReady) return new Promise(res=>{ _wjResolve=res; try{ femWorker.postMessage({cmd:'solve', ...p}); }catch(e){ femWorker=null; res(_solveLocal(p)); } });
+  return new Promise(res=> setTimeout(()=>res(_solveLocal(p)), 0));
+}
+// Beulanalyse (Methode 3a) im Worker; Fallback: BUCK.analyze auf dem Hauptthread (file://).
+function _buckleLocal(p){
+  const bx=p.bx,by=p.by,bz=p.bz, vi=(i,j,k)=>(k*by+j)*bx+i;
+  const active=(i,j,k)=> i>=0&&j>=0&&k>=0&&i<bx&&j<by&&k<bz && p.dom[vi(i,j,k)]===1;
+  const isFixed=n=> p.fixed[n]===1;
+  const forces=[]; for(let t=0;t<p.fNodes.length;t++) forces.push([p.fNodes[t],[p.fVec[3*t],p.fVec[3*t+1],p.fVec[3*t+2]]]);
+  const opts={nx:bx,ny:by,nz:bz,h:p.h,E:p.E,nu:p.nu,active,isFixed,forces,maxEig:p.maxEig||40,tol:p.tol||1e-7};
+  if(p.densArr) opts.dens=(i,j,k)=>p.densArr[vi(i,j,k)];
+  try{ const r=BUCK.analyze(opts); return {blf:r.blf, mode:r.mode, iter:r.iter}; }
+  catch(e){ return {error:String(e&&e.message||e)}; }
+}
+function buckleWorker(p){
+  if(femWorker && workerReady) return new Promise(res=>{ _bkResolve=res; try{ femWorker.postMessage({cmd:'buckle', ...p}); }catch(e){ femWorker=null; res(_buckleLocal(p)); } });
+  return new Promise(res=> setTimeout(()=>res(_buckleLocal(p)), 0));
+}
+// Beul-Optimierung (Methode 3b): läuft im Worker mit Fortschritt; Fallback auf Hauptthread.
+function _buckoptLocal(p){
+  const bx=p.bx,by=p.by,bz=p.bz, vi=(i,j,k)=>(k*by+j)*bx+i;
+  const isFixed=n=> p.fixed[n]===1;
+  const forces=[]; for(let t=0;t<p.fNodes.length;t++) forces.push([p.fNodes[t],[p.fVec[3*t],p.fVec[3*t+1],p.fVec[3*t+2]]]);
+  const protect = p.protArr ? (i,j,k)=>p.protArr[vi(i,j,k)]===1 : undefined;
+  try{ const r=BUCK.optimize({nx:bx,ny:by,nz:bz,h:p.h,E:p.E,nu:p.nu,isFixed,forces,protect,volfrac:p.volfrac,iters:p.iters,move:p.move,rmin:p.rmin,kModes:p.kModes,guard:p.guard,ksP:p.ksP,onIter:(it,blf)=>{ if(_boProgress)_boProgress(it,blf); }});
+    return {rho:r.rho, blf0:r.blf0, blf:r.blf, mode:r.mode, iter:r.iter}; }
+  catch(e){ return {error:String(e&&e.message||e)}; }
+}
+function optimizeBuckWorker(p, onProg){
+  _boProgress=onProg||null;
+  if(femWorker && workerReady) return new Promise(res=>{ _boResolve=res; try{ femWorker.postMessage({cmd:'buckleopt', ...p}); }catch(e){ femWorker=null; res(_buckoptLocal(p)); } });
+  return new Promise(res=> setTimeout(()=>res(_buckoptLocal(p)), 0));
+}
+
+// ---------------- SKO (Topologie) ----------------
+async function runSKO(itOv){ showStruktur(); readDom();
+  const Emod=+el('Emod').value, nu=+el('nu').value, vf=clamp(+el('skoVf').value/100,0.05,0.95), iters=itOv||clamp(+el('skoIt').value|0,1,60), filt=el('skoFilt').checked;
+  const NX=bx+1,NY=by+1,NZ=bz+1, Ntot=bx*by*bz;
+  const nodePos=n=>{const i=n%NX,j=Math.floor(n/NX)%NY,k=Math.floor(n/(NX*NY));return[i*h,j*h,k*h];};
+  const inBox=(p,r)=>Math.abs(p[0]-r.x)<=r.sx/2+1e-6&&Math.abs(p[1]-r.y)<=r.sy/2+1e-6&&Math.abs(p[2]-r.z)<=r.sz/2+1e-6;
+  const LC=[]; for(const cs of lastfaelle){ if((cs.fors&&cs.fors.length)&&(cs.sups&&cs.sups.length)) LC.push(lcAssemble(cs)); }
+  if(!LC.length){ el('sWarn').textContent='Kein gültiger Lastfall (jeder Fall braucht Lager UND Kraft).'; return; }
+  const prot=new Uint8Array(Ntot);
+  for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ const c=[(i+.5)*h,(j+.5)*h,(k+.5)*h];
+    let hit=false; for(const cs of lastfaelle){ if((cs.sups||[]).some(s=>inBox(c,s))||(cs.fors||[]).some(f=>inBox(c,f))){hit=true;break;} } if(hit||inSperre(c,'voll')) prot[vidx(i,j,k)]=1; }
+  mask=mask0.slice(); const rho=new Float32Array(Ntot).fill(vf); for(let v=0;v<Ntot;v++) if(prot[v]) rho[v]=1;
+  el('btnSko').textContent='⏳ SKO…'; el('btnSko').disabled=true; el('sWarn').textContent='';
+  const prevU=LC.map(()=>null); let vm=null; const t0=performance.now();
+  try{
+    cancelCalc=false; for(let it=0; it<iters; it++){ if(cancelCalc) break;
+      el('btnSko').textContent='⏳ SKO '+(it+1)+'/'+iters+'…'; dirty=true;
+      const se=new Float32Array(Ntot); vm=new Float32Array(Ntot); const seL=[], cL=[];
+      for(let ci=0; ci<LC.length; ci++){ const Lc=LC[ci];
+        const res=await solveWorker({bx,by,bz,h,E:Emod,nu, fixedDof:Lc.fixedDof,dom:mask0, fixed:Lc.fixed, fNodes:Lc.fNodes, fVec:Lc.fVec, densArr:rho.slice(), u0:prevU[ci], maxIter:2000, tol:1e-4});
+        if(res.error) throw new Error(res.error);
+        prevU[ci]=res.u; seL.push(res.se); cL.push(lcCompliance(res.u,Lc.fNodes,Lc.fVec));
+        for(let v=0;v<Ntot;v++) if(res.vm[v]>vm[v]) vm[v]=res.vm[v]; }
+      const wts=lcAggWeights(cL,LC);
+      for(let v=0;v<Ntot;v++){ let s=0; for(let ci=0;ci<LC.length;ci++) s+=wts[ci]*seL[ci][v]; se[v]=s; }
+      const dc=new Float32Array(Ntot); for(let v=0;v<Ntot;v++) dc[v]=3*Math.pow(Math.max(rho[v],1e-3),2)*se[v];   // Compliance-Sensitivität (über Lastfälle aggregiert)
+      let df=dc; if(filt){ df=new Float32Array(Ntot); const nb=[[0,0,0],[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+        for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ let sum=0,c=0; for(const q of nb){ const ii=i+q[0],jj=j+q[1],kk=k+q[2]; if(ii<0||jj<0||kk<0||ii>=bx||jj>=by||kk>=bz)continue; sum+=dc[vidx(ii,jj,kk)]; c++; } df[vidx(i,j,k)]=sum/c; } }
+      const ro=rho.slice(); let l1=1e-15,l2=1e15; for(let bs=0;bs<70;bs++){ const lm=Math.sqrt(l1*l2); let vol=0;   // OC-Update (Volumen via Bisektion)
+        for(let v=0;v<Ntot;v++){ if(prot[v]){rho[v]=1;vol+=1;continue;} const be=Math.sqrt(df[v]/lm); rho[v]=clamp(ro[v]*be,Math.max(1e-3,ro[v]-0.2),Math.min(1,ro[v]+0.2)); vol+=rho[v]; }
+        if(vol>vf*Ntot) l1=lm; else l2=lm; }
+    }
+    for(let v=0;v<Ntot;v++) mask[v]=(mask0[v] && (rho[v]>0.5||prot[v]))?1:0;
+    // nur die mit dem Lager verbundene Komponente behalten (keine schwebenden Inseln)
+    { const lab=new Uint8Array(Ntot), stack=[]; let start=-1;
+      for(let v=0;v<Ntot;v++) if(mask[v]&&prot[v]){start=v;break;} if(start<0) for(let v=0;v<Ntot;v++) if(mask[v]){start=v;break;}
+      if(start>=0){ stack.push(start); lab[start]=1;
+        while(stack.length){ const v=stack.pop(), i=v%bx, j=Math.floor(v/bx)%by, k=Math.floor(v/(bx*by));
+          for(const q of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){ const ii=i+q[0],jj=j+q[1],kk=k+q[2]; if(ii<0||jj<0||kk<0||ii>=bx||jj>=by||kk>=bz)continue; const w=vidx(ii,jj,kk); if(mask[w]&&!lab[w]){lab[w]=1;stack.push(w);} } }
+        for(let v=0;v<Ntot;v++) if(mask[v]&&!lab[v]) mask[v]=0; } }
+    buildSurface(); drawBox(); drawRegions();
+    let vmax=0; for(let v=0;v<Ntot;v++) if(mask[v]&&vm[v]>vmax)vmax=vm[v];
+    const g=surfMesh.geometry, ca=g.attributes.color;
+    for(let f=0;f<faceVox.length;f++){ const c=ramp((vm[faceVox[f]]||0)/(vmax||1)); ca.array[3*f]=c[0];ca.array[3*f+1]=c[1];ca.array[3*f+2]=c[2]; }
+    ca.needsUpdate=true; lastRes=null;
+    let kept=0; for(let v=0;v<Ntot;v++) kept+=mask[v];
+    el('sEl').textContent=kept.toLocaleString('de'); el('sMax').textContent=vmax.toFixed(2);
+    el('legend').style.display='block'; el('lgTit').textContent='von Mises (MPa)'; el('lgMin').textContent='0'; el('lgMax').textContent=vmax.toFixed(1);
+    el('btnSko').textContent='✓ SKO ('+((performance.now()-t0)/1000).toFixed(1)+'s, '+(100*kept/Ntot).toFixed(0)+'%)';
+    el('btnSko').disabled=false; dirty=true; setTimeout(()=>el('btnSko').textContent='SKO ausführen',3000);
+  }catch(e){ el('btnSko').textContent='⚠ Fehler'; el('sWarn').textContent=e.message; el('btnSko').disabled=false; }
+}
+function resetSKO(){ if(mask0) mask=mask0.slice(); buildSurface(); drawBox(); drawRegions(); lastRes=null; el('legend').style.display='none';
+  let c=0; if(mask) for(let n=0;n<mask.length;n++)c+=mask[n]; el('sEl').textContent=c.toLocaleString('de'); dirty=true; }
+el('btnSko').addEventListener('click',()=>runSKO());
+el('btnSkoPrev').addEventListener('click',()=>{ el('hv').value=(Math.max(+el('hv').value,0.2)*2).toFixed(2); rebuildDomain(); runSKO(12); el('domInfo').textContent+=' · Grob-Vorschau — für Endergebnis Voxelgröße halbieren + SKO.'; });
+el('btnSkoReset').addEventListener('click',resetSKO);
+
+// ---------------- SIMP-Pro (Methode 2): Dreifeld-SIMP mit Dichtefilter + Heaviside-Projektion ----------------
+// FE-Löser identisch zur SKO (solveWorker); nur die Optimierungsschleife ist feiner (scharfe, netzunabhängige Member).
+async function runSIMP(){ showStruktur(); readDom();
+  const Emod=+el('Emod').value, nu=+el('nu').value;
+  const vf=clamp(+el('simpVf').value/100,0.05,0.95), iters=clamp(+el('simpIt').value|0,5,120);
+  const rmin=Math.max(1.0,+el('simpRmin').value||1.5), betaMax=clamp(+el('simpBeta').value||16,1,64);
+  const NX=bx+1,NY=by+1,NZ=bz+1, Ntot=bx*by*bz, eta=0.5, p=3, move=0.2;
+  const nodePos=n=>{const i=n%NX,j=Math.floor(n/NX)%NY,k=Math.floor(n/(NX*NY));return[i*h,j*h,k*h];};
+  const inBox=(pt,r)=>Math.abs(pt[0]-r.x)<=r.sx/2+1e-6&&Math.abs(pt[1]-r.y)<=r.sy/2+1e-6&&Math.abs(pt[2]-r.z)<=r.sz/2+1e-6;
+  const LC=[]; for(const cs of lastfaelle){ if((cs.fors&&cs.fors.length)&&(cs.sups&&cs.sups.length)) LC.push(lcAssemble(cs)); }
+  if(!LC.length){ el('sWarn').textContent='Kein gültiger Lastfall (jeder Fall braucht Lager UND Kraft).'; return; }
+  const prot=new Uint8Array(Ntot);
+  for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ const c=[(i+.5)*h,(j+.5)*h,(k+.5)*h];
+    let hit=false; for(const cs of lastfaelle){ if((cs.sups||[]).some(s=>inBox(c,s))||(cs.fors||[]).some(f=>inBox(c,f))){hit=true;break;} } if(hit||inSperre(c,'voll')) prot[vidx(i,j,k)]=1; }
+  const dom=mask0;
+  // Dichtefilter-Stencil (linearer Abfall bis rmin), Zeilensumme Hs, roher Faltungsoperator + normierter Filter
+  const st=[], R=Math.floor(rmin);
+  for(let dk=-R;dk<=R;dk++)for(let dj=-R;dj<=R;dj++)for(let di=-R;di<=R;di++){ const d=Math.sqrt(di*di+dj*dj+dk*dk), w=rmin-d; if(w>0) st.push([di,dj,dk,w]); }
+  const Hs=new Float32Array(Ntot);
+  for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ let s=0; for(const q of st){ const ii=i+q[0],jj=j+q[1],kk=k+q[2]; if(ii<0||jj<0||kk<0||ii>=bx||jj>=by||kk>=bz)continue; s+=q[3]; } Hs[vidx(i,j,k)]=s||1; }
+  const rawConv=x=>{ const o=new Float32Array(Ntot);
+    for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ let s=0; for(const q of st){ const ii=i+q[0],jj=j+q[1],kk=k+q[2]; if(ii<0||jj<0||kk<0||ii>=bx||jj>=by||kk>=bz)continue; s+=q[3]*x[vidx(ii,jj,kk)]; } o[vidx(i,j,k)]=s; } return o; };
+  const filter=x=>{ const c=rawConv(x); for(let v=0;v<Ntot;v++) c[v]/=Hs[v]; return c; };
+  const thN=b=>Math.tanh(b*eta)+Math.tanh(b*(1-eta));
+  const proj=(xt,b)=>{ const o=new Float32Array(Ntot),den=thN(b),te=Math.tanh(b*eta); for(let v=0;v<Ntot;v++) o[v]=(te+Math.tanh(b*(xt[v]-eta)))/den; return o; };
+  const dproj=(xt,b)=>{ const o=new Float32Array(Ntot),den=thN(b); for(let v=0;v<Ntot;v++){ const t=Math.tanh(b*(xt[v]-eta)); o[v]=b*(1-t*t)/den; } return o; };
+  let domCount=0; for(let v=0;v<Ntot;v++) if(dom[v]) domCount++;
+  let x=new Float32Array(Ntot).fill(vf); for(let v=0;v<Ntot;v++){ if(!dom[v]) x[v]=0; if(prot[v]) x[v]=1; }
+  let beta=1; const prevU=LC.map(()=>null); let vm=null; const betaStep=Math.max(4,Math.floor(iters/5));
+  el('btnSimp').textContent='⏳ SIMP…'; el('btnSimp').disabled=true; el('sWarn').textContent='';
+  const t0=performance.now();
+  try{
+    cancelCalc=false; for(let it=0; it<iters; it++){ if(cancelCalc) break;
+      el('btnSimp').textContent='⏳ SIMP '+(it+1)+'/'+iters+' (β'+beta.toFixed(0)+')…'; dirty=true;
+      const xT=filter(x); const xP=proj(xT,beta); for(let v=0;v<Ntot;v++){ if(!dom[v]) xP[v]=0; else if(prot[v]) xP[v]=1; }
+      const se=new Float32Array(Ntot); vm=new Float32Array(Ntot); const seL=[], cL=[];
+      for(let ci=0; ci<LC.length; ci++){ const Lc=LC[ci];
+        const res=await solveWorker({bx,by,bz,h,E:Emod,nu, fixedDof:Lc.fixedDof,dom, fixed:Lc.fixed, fNodes:Lc.fNodes, fVec:Lc.fVec, densArr:xP.slice(), u0:prevU[ci], maxIter:2000, tol:1e-4});
+        if(res.error) throw new Error(res.error);
+        prevU[ci]=res.u; seL.push(res.se); cL.push(lcCompliance(res.u,Lc.fNodes,Lc.fVec));
+        for(let v=0;v<Ntot;v++) if(res.vm[v]>vm[v]) vm[v]=res.vm[v]; }
+      const wts=lcAggWeights(cL,LC);
+      for(let v=0;v<Ntot;v++){ let s=0; for(let ci=0;ci<LC.length;ci++) s+=wts[ci]*seL[ci][v]; se[v]=s; }
+      const dpr=dproj(xT,beta);
+      const a=new Float32Array(Ntot), bb=new Float32Array(Ntot);
+      for(let v=0;v<Ntot;v++){ const xp=Math.max(xP[v],1e-3); a[v]=(p*Math.pow(xp,p-1)*se[v])*dpr[v]/Hs[v]; bb[v]=dpr[v]/Hs[v]; }
+      const dc_x=rawConv(a), dv_x=rawConv(bb);
+      let l1=0,l2=1e9, xnew=x;
+      for(let bs=0; bs<90 && (l2-l1)>1e-6*(l1+l2); bs++){ const lm=0.5*(l1+l2); xnew=new Float32Array(Ntot);
+        for(let v=0;v<Ntot;v++){ if(!dom[v]){xnew[v]=0;continue;} if(prot[v]){xnew[v]=1;continue;}
+          const be=Math.sqrt(Math.max(dc_x[v],0)/(lm*Math.max(dv_x[v],1e-12)));
+          const lo=Math.max(0,x[v]-move), hi=Math.min(1,x[v]+move); xnew[v]=Math.min(hi,Math.max(lo,x[v]*be)); }
+        const xp2=proj(filter(xnew),beta); let vol=0; for(let v=0;v<Ntot;v++){ if(!dom[v])continue; vol+=prot[v]?1:xp2[v]; }
+        if(vol>vf*domCount) l1=lm; else l2=lm; }
+      x=xnew;
+      if(it>0 && it%betaStep===0 && beta<betaMax) beta=Math.min(betaMax,beta*2);
+    }
+    const xPf=proj(filter(x),betaMax);
+    mask=mask0.slice(); for(let v=0;v<Ntot;v++) mask[v]=(dom[v] && (xPf[v]>0.5||prot[v]))?1:0;
+    { const lab=new Uint8Array(Ntot), stack=[]; let start=-1;
+      for(let v=0;v<Ntot;v++) if(mask[v]&&prot[v]){start=v;break;} if(start<0) for(let v=0;v<Ntot;v++) if(mask[v]){start=v;break;}
+      if(start>=0){ stack.push(start); lab[start]=1;
+        while(stack.length){ const v=stack.pop(), i=v%bx, j=Math.floor(v/bx)%by, k=Math.floor(v/(bx*by));
+          for(const q of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){ const ii=i+q[0],jj=j+q[1],kk=k+q[2]; if(ii<0||jj<0||kk<0||ii>=bx||jj>=by||kk>=bz)continue; const w=vidx(ii,jj,kk); if(mask[w]&&!lab[w]){lab[w]=1;stack.push(w);} } }
+        for(let v=0;v<Ntot;v++) if(mask[v]&&!lab[v]) mask[v]=0; } }
+    buildSurface(); drawBox(); drawRegions();
+    let vmax=0; for(let v=0;v<Ntot;v++) if(mask[v]&&vm[v]>vmax)vmax=vm[v];
+    const g=surfMesh.geometry, ca=g.attributes.color;
+    for(let f=0;f<faceVox.length;f++){ const c=ramp((vm[faceVox[f]]||0)/(vmax||1)); ca.array[3*f]=c[0];ca.array[3*f+1]=c[1];ca.array[3*f+2]=c[2]; }
+    ca.needsUpdate=true; lastRes=null;
+    let kept=0; for(let v=0;v<Ntot;v++) kept+=mask[v];
+    el('sEl').textContent=kept.toLocaleString('de'); el('sMax').textContent=vmax.toFixed(2);
+    el('legend').style.display='block'; el('lgTit').textContent='von Mises (MPa)'; el('lgMin').textContent='0'; el('lgMax').textContent=vmax.toFixed(1);
+    el('btnSimp').textContent='✓ SIMP-Pro ('+((performance.now()-t0)/1000).toFixed(1)+'s, '+(100*kept/Ntot).toFixed(0)+'%)';
+    el('btnSimp').disabled=false; dirty=true; setTimeout(()=>el('btnSimp').textContent='SIMP-Pro ausführen',3000);
+  }catch(e){ el('btnSimp').textContent='⚠ Fehler'; el('sWarn').textContent=e.message; el('btnSimp').disabled=false; }
+}
+el('btnSimp').addEventListener('click',()=>runSIMP());
+el('btnSimpReset').addEventListener('click',resetSKO);
+
+// ---------------- Beulanalyse (Methode 3a): niedrigster BLF + Knickmode ----------------
+let buckMode=null;
+async function runBuckling(){ showStruktur(); readDom();
+  const Emod=+el('Emod').value, nu=+el('nu').value;
+  const NX=bx+1,NY=by+1,NZ=bz+1, Ntot=bx*by*bz;
+  const nodePos=n=>{const i=n%NX,j=Math.floor(n/NX)%NY,k=Math.floor(n/(NX*NY));return[i*h,j*h,k*h];};
+  const inBox=(pt,r)=>Math.abs(pt[0]-r.x)<=r.sx/2+1e-6&&Math.abs(pt[1]-r.y)<=r.sy/2+1e-6&&Math.abs(pt[2]-r.z)<=r.sz/2+1e-6;
+  let forces=[]; for(const f of fors) forces=forces.concat(forcesFor(f));
+  if(!forces.length){ el('buckOut').textContent='Kraft/Moment trifft keine Knoten.'; return; }
+  if(!sups.length){ el('buckOut').textContent='Kein Lager definiert.'; return; }
+  const fixed=new Uint8Array(NX*NY*NZ); for(let n=0;n<fixed.length;n++){ const p=nodePos(n); if(sups.some(s=>inBox(p,s))) fixed[n]=1; }
+  const fNodes=new Int32Array(forces.length), fVec=new Float32Array(forces.length*3);
+  for(let t=0;t<forces.length;t++){ fNodes[t]=forces[t][0]; fVec[3*t]=forces[t][1][0]; fVec[3*t+1]=forces[t][1][1]; fVec[3*t+2]=forces[t][1][2]; }
+  const dom=(mask&&mask.length===Ntot)?mask:mask0;
+  el('btnBuckle').textContent='⏳ Knickanalyse…'; el('btnBuckle').disabled=true; el('buckOut').textContent='';
+  const t0=performance.now();
+  const res=await buckleWorker({bx,by,bz,h,E:Emod,nu, fixedDof:buildFixedDof(),dom:dom.slice(), fixed, fNodes, fVec, maxEig:40, tol:1e-7});
+  if(res.error){ el('btnBuckle').textContent='⚠ Fehler'; el('buckOut').textContent=res.error; el('btnBuckle').disabled=false; setTimeout(()=>el('btnBuckle').textContent='🌀 Knickanalyse',3000); return; }
+  buckMode=res.mode; const lam=res.blf, safe=lam>=1;
+  el('buckOut').innerHTML='Kleinster BLF λ = <b>'+lam.toFixed(3)+'</b> — '+(safe?('stabil, Sicherheitsfaktor '+lam.toFixed(2)+'× gegen Knicken'):('<b style="color:#e07a6a">knickt vor Volllast</b> — nur '+(lam*100).toFixed(0)+'% der Last tragbar'))+'. ('+res.iter+' Iter, '+((performance.now()-t0)/1000).toFixed(1)+'s)';
+  el('btnBuckle').textContent='✓ λ='+lam.toFixed(2); el('btnBuckle').disabled=false; setTimeout(()=>el('btnBuckle').textContent='🌀 Knickanalyse',3000);
+  el('buckScale').value=30; el('vbuck').textContent='30'; applyBuckMode();
+}
+function applyBuckMode(){ if(!buckMode||!basePos||!vertNode.length) return;
+  const amp=+el('buckScale').value; el('vbuck').textContent=amp;
+  const g=surfMesh.geometry, posAttr=g.attributes.position;
+  let mx=1e-12; for(let f=0;f<vertNode.length;f++){ const n=vertNode[f]; const m=Math.hypot(buckMode[3*n],buckMode[3*n+1],buckMode[3*n+2]); if(m>mx)mx=m; }
+  const modelSize=Math.max(bx*h,by*h,bz*h), factor=(amp/100)*0.25*modelSize/mx;
+  for(let f=0;f<vertNode.length;f++){ const n=vertNode[f];
+    posAttr.array[3*f]=basePos[3*f]+buckMode[3*n]*factor; posAttr.array[3*f+1]=basePos[3*f+1]+buckMode[3*n+1]*factor; posAttr.array[3*f+2]=basePos[3*f+2]+buckMode[3*n+2]*factor; }
+  posAttr.needsUpdate=true; g.computeVertexNormals(); dirty=true;
+}
+el('btnBuckle').addEventListener('click',runBuckling);
+el('buckScale').addEventListener('change',applyBuckMode);
+
+// ---------------- Beul-Optimierung (Methode 3b) ----------------
+async function runBuckOpt(){ showStruktur(); readDom();
+  const Emod=+el('Emod').value, nu=+el('nu').value, Ntot=bx*by*bz, NX=bx+1,NY=by+1,NZ=bz+1;
+  const nodePos=n=>{const i=n%NX,j=Math.floor(n/NX)%NY,k=Math.floor(n/(NX*NY));return[i*h,j*h,k*h];};
+  const inBox=(pt,r)=>Math.abs(pt[0]-r.x)<=r.sx/2+1e-6&&Math.abs(pt[1]-r.y)<=r.sy/2+1e-6&&Math.abs(pt[2]-r.z)<=r.sz/2+1e-6;
+  let forces=[]; for(const f of fors) forces=forces.concat(forcesFor(f));
+  if(!forces.length){ el('boOut').textContent='Kraft/Moment trifft keine Knoten.'; return; }
+  if(!sups.length){ el('boOut').textContent='Kein Lager definiert.'; return; }
+  const fixed=new Uint8Array(NX*NY*NZ); for(let n=0;n<fixed.length;n++){ const p=nodePos(n); if(sups.some(s=>inBox(p,s))) fixed[n]=1; }
+  const fNodes=new Int32Array(forces.length), fVec=new Float32Array(forces.length*3);
+  for(let t=0;t<forces.length;t++){ fNodes[t]=forces[t][0]; fVec[3*t]=forces[t][1][0]; fVec[3*t+1]=forces[t][1][1]; fVec[3*t+2]=forces[t][1][2]; }
+  const protArr=new Uint8Array(Ntot);
+  for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ const c=[(i+.5)*h,(j+.5)*h,(k+.5)*h]; if(sups.some(s=>inBox(c,s))||fors.some(f=>inBox(c,f))) protArr[vidx(i,j,k)]=1; }
+  const vf=clamp(+el('boVf').value/100,0.1,0.9), iters=clamp(+el('boIt').value|0,5,120), move=clamp(+el('boMove').value,0.02,0.3);
+  el('btnBuckOpt').disabled=true; el('btnBuckOpt').textContent='⏳ optimiere…'; el('boOut').textContent=''; const t0=performance.now();
+  const res=await optimizeBuckWorker({bx,by,bz,h,E:Emod,nu, fixedDof:buildFixedDof(),fixed, fNodes, fVec, protArr, volfrac:vf, iters, move, rmin:1.5, kModes:4, guard:3, ksP:18},
+    (it,blf)=>{ el('btnBuckOpt').textContent='⏳ '+(it+1)+'/'+iters+' λ='+blf.toFixed(4); dirty=true; });
+  if(res.error){ el('btnBuckOpt').textContent='⚠ Fehler'; el('boOut').textContent=res.error; el('btnBuckOpt').disabled=false; setTimeout(()=>el('btnBuckOpt').textContent='🌀 Beulen optimieren',3000); return; }
+  const rho=res.rho; mask=mask0.slice(); for(let v=0;v<Ntot;v++) mask[v]=(mask0[v] && rho[v]>0.5)?1:0;
+  { const lab=new Uint8Array(Ntot), stack=[]; let start=-1;
+    for(let v=0;v<Ntot;v++) if(mask[v]&&protArr[v]){start=v;break;} if(start<0) for(let v=0;v<Ntot;v++) if(mask[v]){start=v;break;}
+    if(start>=0){ stack.push(start); lab[start]=1;
+      while(stack.length){ const v=stack.pop(), i=v%bx, j=Math.floor(v/bx)%by, k=Math.floor(v/(bx*by));
+        for(const q of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){ const ii=i+q[0],jj=j+q[1],kk=k+q[2]; if(ii<0||jj<0||kk<0||ii>=bx||jj>=by||kk>=bz)continue; const w=vidx(ii,jj,kk); if(mask[w]&&!lab[w]){lab[w]=1;stack.push(w);} } }
+      for(let v=0;v<Ntot;v++) if(mask[v]&&!lab[v]) mask[v]=0; } }
+  buildSurface(); drawBox(); drawRegions(); lastRes=null; buckMode=res.mode;
+  let kept=0; for(let v=0;v<Ntot;v++) kept+=mask[v]; el('sEl').textContent=kept.toLocaleString('de');
+  const gain=(res.blf/res.blf0-1)*100;
+  el('boOut').innerHTML='λ_min: <b>'+res.blf0.toFixed(4)+'</b> → <b>'+res.blf.toFixed(4)+'</b> (<b style="color:#4fd1a5">+'+gain.toFixed(1)+'%</b> Knicklast bei gleichem Volumen). '+iters+' Iter, '+((performance.now()-t0)/1000).toFixed(1)+'s.';
+  el('btnBuckOpt').textContent='✓ +'+gain.toFixed(0)+'%'; el('btnBuckOpt').disabled=false; dirty=true; setTimeout(()=>el('btnBuckOpt').textContent='🌀 Beulen optimieren',3500);
+}
+el('btnBuckOpt').addEventListener('click',runBuckOpt);
+el('btnBuckOptReset').addEventListener('click',resetSKO);
+
+// ---------------- CAO (Kerbrundung: spannungsgesteuertes Oberflächenwachstum) ----------------
+// Adaptiver Bauraum (2026-07-13, Horst-Idee, erweitert nach Rueckmeldung "waechst nur oben/rechts,
+// nicht unten/links"): CAO liess Wachstum bisher lautlos am Bauraumrand verhungern (Kandidaten in
+// runCAO() sind auf `mask0` UND das feste bx/by/bz-Gitter begrenzt). Nur bei Box-Bauraum sinnvoll
+// umsetzbar (STL-Bauraum liesse sich nicht einfach "vergroessern"). Waechst jetzt in ALLEN 6 Richtungen:
+// bei Wachstum an der UNTEREN Grenze je Achse verschiebt sich der Ursprung intern (alte Voxel-Indizes
+// ruecken um die Zuwachs-Menge auf), und ALLE bestehenden absoluten Koordinaten (Lager/Kraft je
+// Lastfall, Sperren, Kraftfluss-Linien) werden im selben Moment um denselben Betrag mitverschoben
+// (shiftAllCoords()) — an der WELT-Position aendert sich dadurch nichts, nur die internen Indizes.
+// Kein Bruch bestehender .bio-Dateien, da das nur live waehrend des Laufs passiert (siehe Rueckfrage
+// 2026-07-13: projektweite "zentrierter Ursprung"-Umstellung bewusst NICHT gemacht, nur dieser
+// gezielte Fix — Horst: "Ursprung so lassen wenn das Wachsen in alle Richtungen gut funktioniert").
+async function runCAO(){ showStruktur(); readDom();
+  const Emod=+el('Emod').value, nu=+el('nu').value, iters=clamp(+el('caoIt').value|0,1,20), band=clamp(+el('caoBand').value/100,0.05,0.9);
+  const inBox=(p,r)=>Math.abs(p[0]-r.x)<=r.sx/2+1e-6&&Math.abs(p[1]-r.y)<=r.sy/2+1e-6&&Math.abs(p[2]-r.z)<=r.sz/2+1e-6;
+  let Ntot=bx*by*bz, LC=[], prot=null;
+  function rebuildAux(){   // muss nach jedem Bauraum-Resize neu laufen (bx/by/bz haben sich geaendert)
+    Ntot=bx*by*bz;
+    LC=[]; for(const cs of lastfaelle){ if((cs.fors&&cs.fors.length)&&(cs.sups&&cs.sups.length)) LC.push(lcAssemble(cs)); }
+    prot=new Uint8Array(Ntot);
+    for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ const c=[(i+.5)*h,(j+.5)*h,(k+.5)*h]; let hit=false; for(const cs of lastfaelle){ if((cs.sups||[]).some(s=>inBox(c,s))||(cs.fors||[]).some(f=>inBox(c,f))){hit=true;break;} } if(hit||inSperre(c,'voll')) prot[vidx(i,j,k)]=1; }
+  }
+  rebuildAux();
+  if(!LC.length){ el('sWarn').textContent='Kein gültiger Lastfall (jeder Fall braucht Lager UND Kraft).'; return; }
+  const nb=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]], empty=(i,j,k)=> i<0||j<0||k<0||i>=bx||j>=by||k>=bz||!mask[vidx(i,j,k)];
+  const adaptOn = !!(el('adaptBau') && el('adaptBau').checked && !stlData), ADAPT_PAD=6;
+  function shiftAllCoords(dx,dy,dz){   // Welt-Position bleibt gleich, nur der interne Ursprung wandert
+    for(const cs of lastfaelle){ for(const s of (cs.sups||[])){ s.x+=dx; s.y+=dy; s.z+=dz; } for(const f of (cs.fors||[])){ f.x+=dx; f.y+=dy; f.z+=dz; } }
+    for(const s of sperren){ s.x+=dx; s.y+=dy; s.z+=dz; }
+    if(rawFlowLines) for(const line of rawFlowLines) for(const p of line){ p[0]+=dx; p[1]+=dy; p[2]+=dz; }
+  }
+  function growBauraum(loX,hiX,loY,hiY,loZ,hiZ){
+    const bxOld=bx, byOld=by, bzOld=bz;
+    const reqX=(loX?ADAPT_PAD:0)+(hiX?ADAPT_PAD:0), reqY=(loY?ADAPT_PAD:0)+(hiY?ADAPT_PAD:0), reqZ=(loZ?ADAPT_PAD:0)+(hiZ?ADAPT_PAD:0);
+    const bxN=clamp(bx+reqX,2,200), byN=clamp(by+reqY,2,200), bzN=clamp(bz+reqZ,2,200);
+    if(bxN===bxOld && byN===byOld && bzN===bzOld) return false;   // schon am Maximum (200 Voxel/Achse)
+    // Zuwachs auf Lo/Hi verteilen (Hi zuerst, Lo bekommt den Rest) — nur padLo verlangt einen Index-Shift.
+    const totX=bxN-bxOld, padHiX=Math.min(hiX?ADAPT_PAD:0,totX), padLoX=totX-padHiX;
+    const totY=byN-byOld, padHiY=Math.min(hiY?ADAPT_PAD:0,totY), padLoY=totY-padHiY;
+    const totZ=bzN-bzOld, padHiZ=Math.min(hiZ?ADAPT_PAD:0,totZ), padLoZ=totZ-padHiZ;
+    const newMaskArr=new Uint8Array(bxN*byN*bzN);
+    for(let k=0;k<bzOld;k++)for(let j=0;j<byOld;j++)for(let i=0;i<bxOld;i++) newMaskArr[((k+padLoZ)*byN+(j+padLoY))*bxN+(i+padLoX)]=mask[(k*byOld+j)*bxOld+i];
+    bx=bxN; by=byN; bz=bzN;
+    el('szx').value=Math.round(bx*h); el('szy').value=Math.round(by*h); el('szz').value=Math.round(bz*h);
+    mask=newMaskArr;
+    if(padLoX||padLoY||padLoZ) shiftAllCoords(padLoX*h, padLoY*h, padLoZ*h);   // Welt-Position bestehender Randbedingungen erhalten
+    mask0=computeDomain();   // frisch, respektiert Sperren (bereits verschoben) auch in der neuen Zone
+    rebuildAux();
+    buildSurface(); drawBox(); drawRegions(); renderRegEd();
+    return true;
+  }
+  el('btnCao').textContent='⏳ CAO…'; el('btnCao').disabled=true; el('sWarn').textContent='';
+  try{
+    cancelCalc=false; for(let it=0; it<iters; it++){ if(cancelCalc) break;
+      el('btnCao').textContent='⏳ CAO '+(it+1)+'/'+iters+'…'; dirty=true;
+      const vm=new Float32Array(Ntot);   // #35: Spannungs-Hüllkurve (max über alle Lastfälle)
+      for(let ci=0; ci<LC.length; ci++){ const Lc=LC[ci];
+        const res=await solveWorker({bx,by,bz,h,E:Emod,nu, fixedDof:Lc.fixedDof,dom:mask.slice(), fixed:Lc.fixed, fNodes:Lc.fNodes, fVec:Lc.fVec, maxIter:2000, tol:1e-4});
+        if(res.error) throw new Error(res.error);
+        for(let v=0;v<Ntot;v++) if(res.vm[v]>vm[v]) vm[v]=res.vm[v]; }
+      let sum=0,cnt=0; const surf=[];
+      for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ const v=vidx(i,j,k); if(!mask[v])continue; let s=false; for(const q of nb) if(empty(i+q[0],j+q[1],k+q[2])){s=true;break;} if(s){ surf.push([i,j,k,v]); sum+=vm[v]; cnt++; } }
+      if(cnt){ const ref=sum/cnt;
+        if(adaptOn){
+          let loX=false,hiX=false,loY=false,hiY=false,loZ=false,hiZ=false;
+          for(const q of surf){ const i=q[0],j=q[1],k=q[2],v=q[3]; if(vm[v]>ref*(1+band)){
+            if(i===bx-1) hiX=true; if(j===by-1) hiY=true; if(k===bz-1) hiZ=true;
+            if(i===0) loX=true; if(j===0) loY=true; if(k===0) loZ=true; } }
+          if(loX||hiX||loY||hiY||loZ||hiZ){
+            const grew=growBauraum(loX,hiX,loY,hiY,loZ,hiZ);
+            if(grew){ el('sWarn').textContent='Adaptiver Bauraum: automatisch erweitert, Iteration wird auf dem neuen Bauraum wiederholt.'; it--; continue; }
+            else el('sWarn').textContent='Adaptiver Bauraum: Maximalgrösse (200 Voxel/Achse) erreicht, kein weiteres Wachstum möglich.';
+          }
+        }
+        const add=new Set(), rem=new Set();
+        for(const q of surf){ const i=q[0],j=q[1],k=q[2],v=q[3]; if(vm[v]>ref*(1+band)){ for(const rr of nb){ const ii=i+rr[0],jj=j+rr[1],kk=k+rr[2]; if(ii>=0&&jj>=0&&kk>=0&&ii<bx&&jj<by&&kk<bz&&!mask[vidx(ii,jj,kk)]&&mask0[vidx(ii,jj,kk)]) add.add(vidx(ii,jj,kk)); } }
+          else if(vm[v]<ref*(1-band) && !prot[v]) rem.add(v); }
+        for(const v of add) mask[v]=1; for(const v of rem) mask[v]=0;
+        buildSurface(); drawBox(); drawRegions();
+        let vmax=0; for(let vv=0;vv<Ntot;vv++) if(mask[vv]&&vm[vv]>vmax)vmax=vm[vv];
+        const g=surfMesh.geometry, ca=g.attributes.color; for(let f=0;f<faceVox.length;f++){ const c=ramp((vm[faceVox[f]]||0)/(vmax||1)); ca.array[3*f]=c[0];ca.array[3*f+1]=c[1];ca.array[3*f+2]=c[2]; } ca.needsUpdate=true;
+        el('sMax').textContent=vmax.toFixed(2); el('legend').style.display='block'; el('lgTit').textContent='von Mises (MPa)'; el('lgMin').textContent='0'; el('lgMax').textContent=vmax.toFixed(1);
+      }
+    }
+    el('btnCao').textContent='✓ CAO fertig'; el('btnCao').disabled=false; dirty=true; setTimeout(()=>el('btnCao').textContent='CAO ausführen',2500);
+  }catch(e){ el('btnCao').textContent='⚠ Fehler'; el('sWarn').textContent=e.message; el('btnCao').disabled=false; }
+}
+el('btnCao').addEventListener('click',runCAO);
+el('btnCaoReset').addEventListener('click',resetSKO);
+el('btnCancel').addEventListener('click',()=>{ cancelCalc=true; el('sWarn').textContent='Berechnung wird nach der aktuellen Iteration abgebrochen…'; });
+
+// ---------------- Export & Speichern ----------------
+async function saveBlob(blob, name, types){
+  if(window.showSaveFilePicker){ try{ const fh=await showSaveFilePicker({suggestedName:name, types}); const w=await fh.createWritable(); await w.write(blob); await w.close(); return; }catch(e){ if(e.name==='AbortError')return; } }
+  const url=URL.createObjectURL(blob), a=document.createElement('a'); a.href=url; a.download=name; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+}
+const baseName=()=>el('expName').value.trim()||'struktur';
+function exportPNG(){ updateCam(); renderer.render(scene,camera);
+  const src=renderer.domElement, cv=document.createElement('canvas'); cv.width=src.width; cv.height=src.height; const cx=cv.getContext('2d');
+  cx.drawImage(src,0,0);
+  if(el('legend').style.display!=='none'){ const bw=Math.round(cv.width*0.22), bh=14, x=cv.width-bw-24, y=cv.height-46;
+    const gr=cx.createLinearGradient(x,0,x+bw,0); gr.addColorStop(0,'#3a6ea5');gr.addColorStop(.4,'#4fd1a5');gr.addColorStop(.7,'#e8c45a');gr.addColorStop(1,'#e0664f');
+    cx.fillStyle=gr; cx.fillRect(x,y,bw,bh); cx.fillStyle='#fff'; cx.font='14px sans-serif';
+    cx.textAlign='left'; cx.fillText(el('lgTit').textContent||'von Mises',x,y-6); cx.fillText('0',x,y+bh+15);
+    cx.textAlign='right'; cx.fillText(el('lgMax').textContent||'',x+bw,y+bh+15); }
+  cv.toBlob(b=>saveBlob(b, baseName()+'.png', [{description:'PNG',accept:{'image/png':['.png']}}]),'image/png');
+}
+function exportOBJ(){ const g=surfMesh.geometry, p=g.attributes.position, c=g.attributes.color; if(!p||!p.count){ el('sWarn').textContent='Nichts zu exportieren.'; return; }
+  const n=p.count; let s='# Mattheck OBJ (v x y z r g b)\n';
+  for(let i=0;i<n;i++){ s+='v '+p.getX(i).toFixed(3)+' '+p.getY(i).toFixed(3)+' '+p.getZ(i).toFixed(3)+(c?' '+c.getX(i).toFixed(3)+' '+c.getY(i).toFixed(3)+' '+c.getZ(i).toFixed(3):'')+'\n'; }
+  for(let i=0;i<n;i+=3) s+='f '+(i+1)+' '+(i+2)+' '+(i+3)+'\n';
+  saveBlob(new Blob([s],{type:'text/plain'}), baseName()+'.obj', [{description:'OBJ',accept:{'text/plain':['.obj']}}]);
+}
+// sperren fuer JSON aufbereiten: stl.raw ist ein ArrayBuffer (kein enumerierbares Feld) — ohne diese Bereinigung
+// würde JSON.stringify() daraus stillschweigend ein leeres "{}" machen (nicht kaputt, aber unnötiger Ballast).
+// Volle Rohdaten-Einbettung (Base64) macht collectAll() separat (siehe *.bio Phase 2).
+function sperrenForJson(){ return sperren.map(s=>{ if(s.shape!=='stl'||!s.stl) return s;
+  const {raw,...stlRest}=s.stl; return {...s, stl:stlRest}; }); }
+function lcData(){ return {format:'bionicad-lc-v2', sz:[+el('szx').value,+el('szy').value,+el('szz').value], hv:+el('hv').value, mat:el('mat').value, E:+el('Emod').value, nu:+el('nu').value, lastfaelle, activeLc, sperren:sperrenForJson(), sups, fors}; }
+function saveLc(){ saveBlob(new Blob([JSON.stringify(lcData(),null,1)],{type:'application/json'}), baseName()+'_lastfall.json', [{description:'JSON',accept:{'application/json':['.json']}}]); }
+function applyLc(d){ if(!d)return; if(d.sz){el('szx').value=d.sz[0];el('szy').value=d.sz[1];el('szz').value=d.sz[2];} if(d.hv)el('hv').value=d.hv;
+  if(d.mat!=null)el('mat').value=d.mat; if(d.E)el('Emod').value=d.E; if(d.nu!=null)el('nu').value=d.nu;
+  if(Array.isArray(d.lastfaelle) && d.lastfaelle.length){                                   // #35: neues Multi-Lastfall-Format
+    lastfaelle=d.lastfaelle.map((c,i)=>({ name:(c&&c.name)||('Fall '+(i+1)), w:(c&&c.w!=null)?+c.w:1,
+      sups:(c&&Array.isArray(c.sups))?c.sups:[], fors:(c&&Array.isArray(c.fors))?c.fors:[] }));
+  } else if(d.sups||d.fors){ lastfaelle=[{name:'Fall 1',w:1,sups:d.sups||[],fors:d.fors||[]}]; }   // altes Einzel-Lastfall-Format migrieren
+  else if(d.regions){ lastfaelle=[{name:'Fall 1',w:1,sups:[d.regions.sup],fors:[d.regions.for]}]; }   // sehr altes Format
+  activeLc=0; syncLcRefs(); sperren=Array.isArray(d.sperren)?d.sperren:[]; renderSperrList(); fitVScale(); rebuildDomain(); setActiveLc(0); }
+el('btnPng').addEventListener('click',exportPNG);
+el('btnObj').addEventListener('click',exportOBJ);
+el('btnSaveLc').addEventListener('click',saveLc);
+el('btnLoadLc').addEventListener('click',()=>el('lcFile').click());
+el('lcFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const rd=new FileReader(); rd.onload=ev=>{ try{ applyLc(JSON.parse(ev.target.result)); }catch(err){ el('sWarn').textContent='Lastfall-Fehler: '+err.message; } }; rd.readAsText(f); e.target.value=''; });
+
+// ================= *.bio Phase 2 (2026-07-12): vollstaendige Projekt-Speicherung =================
+// Regler/Selects/Checkboxen ausserhalb von lcData() (SKO/SIMP-Pro/Beulen/CAO/Kern-Export/Lattice-Export/
+// Kraftfluss-Editor+Feld/Anzeige) — analog Tessellation CTRL_IDS/SEL_IDS/CHK_IDS. Bewusst NICHT enthalten:
+// die 2D-Formfindung (f2d*-Felder, eigenstaendiges Untermodul mit eigener Komplexitaet) — siehe
+// wissensbasis/28_projektdatei_bio_format_konzept_v1.md, spaetere Erweiterung falls gewuenscht.
+const M_CTRL_IDS=['expName','aggRho','gravG','resOpac','skoVf','skoIt','simpVf','simpIt','simpRmin','simpBeta',
+  'buckScale','boVf','boIt','boMove','caoIt','caoBand','kVox','kFil','kStrut','kUrl','latStrut',
+  'flowSeed','flowStep','flowMax','flowSmooth','flCell','flVoxel','flVol','flGrad','flCaio','flLen','flSm','defScale'];
+const M_SEL_IDS=['aggMode','kSmooth','kModus','latMode','flType','flClip','field'];
+const M_CHK_IDS=['gravOn','skoFilt','adaptBau'];
+function collectAll(){
+  const s=lcData(); s.format='bionicad-bio-mattheck-v1';
+  s.ctrl={}; M_CTRL_IDS.forEach(id=>{ const e=el(id); if(e) s.ctrl[id]=e.value; });
+  s.sel={}; M_SEL_IDS.forEach(id=>{ const e=el(id); if(e) s.sel[id]=e.value; });
+  s.chk={}; M_CHK_IDS.forEach(id=>{ const e=el(id); if(e) s.chk[id]=e.checked; });
+  // Bauraum-STL (Vollteil) Rohdaten
+  if(stlData && stlData.raw) s.stlData={name:stlData.name, stlB64:ab2b64(stlData.raw)};
+  // Sperren-STL-Rohdaten (separater Index Sperre-Position -> Base64, da s.sperren selbst schon ueber
+  // lcData()/sperrenForJson() ohne raw serialisiert wird)
+  s.sperrenStl={}; sperren.forEach((sp,i)=>{ if(sp.shape==='stl' && sp.stl && sp.stl.raw) s.sperrenStl[i]=ab2b64(sp.stl.raw); });
+  // Kraftfluss-Editor (rawFlowLines = ungeglaettet+ungeloescht, flowDel = Indizes geloeschter Linien)
+  s.flow = (typeof rawFlowLines!=='undefined' && rawFlowLines) ? {rawLines:rawFlowLines, del:Array.from(flowDel||[])} : null;
+  // Ergebnis ("Alles inkl. Spannungsfeld/CAIO-Feld", Horst-Entscheidung 2026-07-12): Struktur (mask/mask0,
+  // 1 Byte/Voxel) + schlankes FEM-Resultat (vm+u — vg/umag/vmax/dmax sind reine Ableitungen, siehe
+  // deriveResFields(), werden beim Laden neu berechnet statt gespeichert) + letztes Kern-STL + Beul-Modus.
+  s.mask = mask ? Array.from(mask) : null;
+  s.mask0 = mask0 ? Array.from(mask0) : null;
+  s.lastRes = (lastRes && lastRes.vm) ? {vm:lastRes.vm, u:Array.from(lastRes.u||[]), iter:lastRes.iter, resid:lastRes.resid} : null;
+  s.kernB64 = kernBuf ? ab2b64(kernBuf) : null;
+  s.buckMode = buckMode || null;
+  return s;
+}
+function saveAll(){ saveBlob(new Blob([JSON.stringify(collectAll())],{type:'application/json'}), baseName()+'_projekt.json', [{description:'JSON',accept:{'application/json':['.json']}}]); }
+function applyAll(s){ if(!s) return;
+  // Bauraum-STL VOR applyLc() wiederherstellen, damit dessen abschliessender rebuildDomain()-Aufruf die
+  // STL-Form (nicht nur die Box) fuer mask/mask0 verwendet.
+  if(s.stlData && s.stlData.stlB64){ try{ importVollteilStlBuffer(b642ab(s.stlData.stlB64), s.stlData.name); }
+    catch(err){ el('sWarn').textContent='Bauraum-STL konnte nicht wiederhergestellt werden: '+err.message; stlData=null; } }
+  else { stlData=null; el('domInfo').textContent='Box-Bauraum.'; }
+  applyLc(s);   // sz/hv/mat/E/nu/lastfaelle/activeLc/sperren + finaler rebuildDomain() (mask/mask0 frisch aus Box/STL)
+  // Sperren-STL-Rohdaten nachtragen (fuer verlustfreies erneutes Speichern; tris/bk/name sind schon ueber
+  // sperren selbst wiederhergestellt und funktionieren auch ohne raw)
+  if(s.sperrenStl) for(const i in s.sperrenStl){ const sp=sperren[+i]; if(sp && sp.shape==='stl' && sp.stl){ try{ sp.stl.raw=b642ab(s.sperrenStl[i]); }catch(e){} } }
+  if(s.ctrl) for(const id in s.ctrl){ const e=el(id); if(e){ e.value=s.ctrl[id]; e.dispatchEvent(new Event('input',{bubbles:true})); } }
+  if(s.sel) for(const id in s.sel){ const e=el(id); if(e) e.value=s.sel[id]; }
+  if(s.chk) for(const id in s.chk){ const e=el(id); if(e) e.checked=s.chk[id]; }
+  if(s.flow && s.flow.rawLines){ rawFlowLines=s.flow.rawLines; flowDel=new Set(s.flow.del||[]); rebuildFlow(); }
+  // Struktur-Ergebnis: nur uebernehmen, wenn die Voxelaufloesung (aus dem gerade restaurierten sz/hv) exakt passt.
+  const Ntot=bx*by*bz;
+  if(Array.isArray(s.mask) && s.mask.length===Ntot) mask=Uint8Array.from(s.mask);
+  if(Array.isArray(s.mask0) && s.mask0.length===Ntot) mask0=Uint8Array.from(s.mask0);
+  buildSurface(); drawBox(); drawRegions();
+  if(s.lastRes && Array.isArray(s.lastRes.vm)){
+    try{ lastRes={vm:s.lastRes.vm, u:Float32Array.from(s.lastRes.u||[]), iter:s.lastRes.iter, resid:s.lastRes.resid};
+      deriveResFields(lastRes); applyField(); drawStress();
+      if(el('sIt')) el('sIt').textContent=lastRes.iter; if(el('sRes')) el('sRes').textContent=(lastRes.resid||0).toExponential(1);
+      if(el('sMax')) el('sMax').textContent=lastRes.vmax.toFixed(2); if(el('sDisp')) el('sDisp').textContent=lastRes.dmax.toFixed(4);
+    }catch(err){ el('sWarn').textContent='Spannungsfeld konnte nicht wiederhergestellt werden: '+err.message; lastRes=null; }
+  } else lastRes=null;
+  buckMode=s.buckMode||null;
+  if(s.kernB64){ try{ kernBuf=b642ab(s.kernB64); const g=new THREE.STLLoader().parse(kernBuf); g.computeBoundingBox();
+      kernMesh.geometry.dispose(); kernMesh.geometry=g; kernMesh.visible=true; surfMesh.visible=false; el('legend').style.display='none';
+      el('btnKernDl').disabled=false; el('btnKernHide').disabled=false;
+    }catch(err){ el('sWarn').textContent='Kern-STL konnte nicht wiederhergestellt werden: '+err.message; kernBuf=null; } }
+  else kernBuf=null;
+  dirty=true;
+}
+el('btnSaveAll').addEventListener('click',saveAll);
+el('btnLoadAll').addEventListener('click',()=>el('allFile').click());
+el('allFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=ev=>{ try{ applyAll(JSON.parse(ev.target.result)); }catch(err){ el('sWarn').textContent='Projekt-Fehler: '+err.message; } }; rd.readAsText(f); e.target.value=''; });
+// *.bio Phase 4 (2026-07-12): Shell-Orchestrierung (bionicad.html) fragt per postMessage den Modul-Zustand ab
+// bzw. spielt ihn zurueck — nur relevant innerhalb der Shell, im Standalone-Betrieb kommen solche Nachrichten
+// nie an. Siehe wissensbasis/28_projektdatei_bio_format_konzept_v1.md.
+addEventListener('message', e=>{ if(!e.data) return;
+  if(e.data.bioCollect) e.source.postMessage({bioCollectReply:true, module:'mattheck', data:collectAll()}, '*');
+  else if(e.data.bioApply) { try{ applyAll(e.data.data); }catch(err){ el('sWarn').textContent='Projekt-Fehler: '+err.message; } } });
+
+// ---------------- #35: Lastfall-Verwaltung (mehrere Fälle) ----------------
+function lcClampSel(){ const nS=sups.length, nF=fors.length;
+  if(sel && sel.kind==='sup' && sel.idx<nS) return;
+  if(sel && sel.kind==='for' && sel.idx<nF) return;
+  sel = nS ? {kind:'sup',idx:0} : (nF ? {kind:'for',idx:0} : null); }
+function renderLcBar(){ const s=el('lcSel'); if(!s) return;
+  s.innerHTML=lastfaelle.map((c,i)=>'<option value="'+i+'"'+(i===activeLc?' selected':'')+'>'+(i+1)+'. '+String(c.name||('Fall '+(i+1))).replace(/</g,'&lt;')+'</option>').join('');
+  s.value=String(activeLc);
+  const nm=el('lcName'), w=el('lcW'); if(nm) nm.value=lastfaelle[activeLc].name||''; if(w) w.value=(lastfaelle[activeLc].w!=null?lastfaelle[activeLc].w:1);
+  const d=el('btnLcDel'); if(d) d.disabled=(lastfaelle.length<=1); }
+function setActiveLc(i){ activeLc=Math.max(0,Math.min(i|0,lastfaelle.length-1)); syncLcRefs(); lcClampSel();
+  vecMode=false; if(el('btnVec')) el('btnVec').classList.remove('on');
+  renderLcBar(); fitVScale(); renderRegList(); drawRegions(); renderRegEd(); attachGizmo(); dirty=true; }
+function addLc(dup){ const src=lastfaelle[activeLc];
+  const nc = dup ? { name:(src.name||'Fall')+' Kopie', w:(src.w!=null?src.w:1), sups:JSON.parse(JSON.stringify(src.sups)), fors:JSON.parse(JSON.stringify(src.fors)) }
+                 : { name:'Fall '+(lastfaelle.length+1), w:1, sups:[], fors:[] };
+  lastfaelle.push(nc); setActiveLc(lastfaelle.length-1); }
+function delLc(){ if(lastfaelle.length<=1) return; lastfaelle.splice(activeLc,1); setActiveLc(Math.min(activeLc,lastfaelle.length-1)); }
+el('lcSel').addEventListener('change',e=>setActiveLc(+e.target.value));
+el('btnLcAdd').addEventListener('click',()=>addLc(false));
+el('btnLcDup').addEventListener('click',()=>addLc(true));
+el('btnLcDel').addEventListener('click',delLc);
+el('lcName').addEventListener('input',e=>{ lastfaelle[activeLc].name=e.target.value; const o=el('lcSel'); if(o&&o.options[activeLc]) o.options[activeLc].textContent=(activeLc+1)+'. '+e.target.value; });
+el('lcW').addEventListener('change',e=>{ lastfaelle[activeLc].w=Math.max(0,+e.target.value||0); });
+
+// PicoGK-Kern: aktuelles Voxelfeld an lokalen Server -> glattes STL, direkt anzeigen
+let kernBuf=null;
+function parseBinarySTL(buf){ const dv=new DataView(buf); const n=dv.getUint32(80,true); const pos=new Float32Array(n*9); let o=84;
+  for(let i=0;i<n;i++){ o+=12; for(let j=0;j<3;j++){ pos[i*9+j*3]=dv.getFloat32(o,true); pos[i*9+j*3+1]=dv.getFloat32(o+4,true); pos[i*9+j*3+2]=dv.getFloat32(o+8,true); o+=12; } o+=2; }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.computeVertexNormals(); return g; }
+function showStruktur(){ kernMesh.visible=false; latGroup.visible=false; surfMesh.visible=true; dirty=true; }
+async function kernRender(){
+  const orient = el('kModus').value==='lattice' && el('kOrient').checked && lastRes && lastRes.vm;
+  const baseR = (+el('kStrut').value)||h*0.18;
+  let lut=null, pRef=1e-9;
+  if(orient){ lut=new Map(); for(const e of lastRes.vm){ if(!e.pv)continue; lut.set(vidx(e.i,e.j,e.k),e);
+    const a=Math.max(Math.abs(e.pv[0]),Math.abs(e.pv[1]),Math.abs(e.pv[2])); if(a>pRef)pRef=a; } }
+  const vox=[], frames=[];
+  for(let v=0; v<mask.length; v++){ if(mask[v]!==1) continue; vox.push(v);
+    if(orient){ const e=lut.get(v);
+      if(e){ for(let ax=0;ax<3;ax++){ const d=e.pd[ax], r=baseR*Math.min(1,Math.max(0.28,Math.sqrt(Math.abs(e.pv[ax])/pRef))); frames.push(d[0],d[1],d[2],r); } }
+      else { frames.push(1,0,0,baseR*0.5, 0,1,0,baseR*0.5, 0,0,1,baseR*0.5); } }
+  }
+  if(!vox.length){ el('sWarn').textContent='Kein Voxelfeld — erst „Rechnen", SKO oder CAO.'; return; }
+  if(el('kOrient').checked && el('kModus').value==='lattice' && !orient){ el('sWarn').textContent='Für Lastpfad-Ausrichtung erst „Lösen" (FEM) auf dieser Geometrie rechnen.'; }
+  const body={ h, bx, by, bz, vox, voxel:(+el('kVox').value)||h*0.5, fillet:Math.max(0,+el('kFil').value||0), smooth:el('kSmooth').value, modus:el('kModus').value, strut:Math.max(0,+el('kStrut').value||0) };
+  if(orient){ body.orient=true; body.frames=frames; }
+  const url=(el('kUrl').value||'http://localhost:5151/').replace(/\/*$/,'/')+'sko';
+  const b=el('btnKern'); b.textContent='⏳ Kern rechnet…'; b.disabled=true; el('sWarn').textContent='';
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('Server '+r.status+': '+(await r.text()).slice(0,120));
+    kernBuf=await r.arrayBuffer();
+    const g=new THREE.STLLoader().parse(kernBuf); g.computeBoundingBox();
+    const nTri=(g.attributes.position?g.attributes.position.count:0)/3, kb=(kernBuf.byteLength/1024).toFixed(0);
+    console.log('[Kern] HTTP',r.status,'| bytes',kernBuf.byteLength,'| Dreiecke',nTri,'| bbox',g.boundingBox);
+    if(nTri<1){ el('sWarn').textContent='Kern lieferte 0 Dreiecke — Server neu bauen & neu starten: „dotnet build", dann „lattice-fraktal serve".'; b.textContent='⚠ leer'; b.disabled=false; return; }
+    kernMesh.geometry.dispose(); kernMesh.geometry=g;
+    kernMesh.visible=true; surfMesh.visible=false; el('legend').style.display='none';
+    target.copy(g.boundingBox.getCenter(new THREE.Vector3())); dirty=true;
+    el('btnKernDl').disabled=false; el('btnKernHide').disabled=false;
+    el('domInfo').textContent='Kern angezeigt: '+nTri.toLocaleString('de')+' Dreiecke ('+kb+' KB).';
+    b.textContent='✓ angezeigt ('+kb+' KB)';
+  }catch(err){ console.error('[Kern]',err); el('sWarn').textContent='Kern-Fehler: '+err.message+' — läuft „lattice-fraktal serve" (neu gebaut!) und ist die Seite über http://localhost:5151/mattheck.html geöffnet?'; b.textContent='⚠ Fehler'; }
+  b.disabled=false; setTimeout(()=>{ if(!kernMesh.visible) b.textContent='🛠 Kern rendern & anzeigen'; },3000);
+}
+el('btnKern').addEventListener('click',kernRender);
+el('btnKernDl').addEventListener('click',()=>{ if(!kernBuf)return; saveBlob(new Blob([kernBuf],{type:'model/stl'}), baseName()+'_kern.stl', [{description:'STL',accept:{'model/stl':['.stl']}}]); });
+el('btnKernHide').addEventListener('click',showStruktur);
+// Ergebnis-Transparenz: Mesh durchscheinend schalten, damit Kraftfluss/Innenstruktur sichtbar bleibt (Editieren/Beurteilen)
+el('resOpac').addEventListener('change',e=>{ const t=+e.target.value/100; surfMat.opacity=1-t; surfMat.transparent=t>0.001; surfMat.depthWrite=!(t>0.001); surfMat.needsUpdate=true; el('vOpac').textContent=e.target.value+' %'; dirty=true; });
+// ---------------- Lattice direkt aus dem Voxelfeld (Browser, ohne Server) ----------------
+function latticeSegments(){
+  const modus=el('latMode').value, r=(+el('latStrut').value)||h*0.18;
+  const orient = modus==='orient' && lastRes && lastRes.vm;
+  let lut=null, pRef=1e-9;
+  if(orient){ lut=new Map(); for(const e of lastRes.vm){ if(!e.pv)continue; lut.set(vidx(e.i,e.j,e.k),e);
+    const a=Math.max(Math.abs(e.pv[0]),Math.abs(e.pv[1]),Math.abs(e.pv[2])); if(a>pRef)pRef=a; } }
+  const segs=[];
+  for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ if(mask[vidx(i,j,k)]!==1)continue;
+    const cx=(i+.5)*h,cy=(j+.5)*h,cz=(k+.5)*h;
+    if(orient){ const e=lut.get(vidx(i,j,k));
+      if(e){ for(let ax=0;ax<3;ax++){ const d=e.pd[ax], rr=r*Math.min(1,Math.max(0.28,Math.sqrt(Math.abs(e.pv[ax])/pRef))), L=0.6*h;
+        segs.push([cx-d[0]*L,cy-d[1]*L,cz-d[2]*L, cx+d[0]*L,cy+d[1]*L,cz+d[2]*L, rr]); } }
+      else { const L=0.5*h; segs.push([cx-L,cy,cz,cx+L,cy,cz,r*.5],[cx,cy-L,cz,cx,cy+L,cz,r*.5],[cx,cy,cz-L,cx,cy,cz+L,r*.5]); }
+    } else { for(let dz=0;dz<=1;dz++)for(let dy=0;dy<=1;dy++)for(let dx=0;dx<=1;dx++)
+        segs.push([cx,cy,cz,(i+dx)*h,(j+dy)*h,(k+dz)*h, r]); }
+  }
+  return {segs, orient};
+}
+function previewLattice(){ const {segs,orient}=latticeSegments();
+  if(!segs.length){ el('sWarn').textContent='Kein Voxelfeld — erst „Rechnen", SKO oder CAO.'; return; }
+  el('sWarn').textContent = (el('latMode').value==='orient' && !orient) ? 'Lastpfad-Modus braucht einen FEM-Lauf („Lösen") auf dieser Geometrie — zeige BCC.' : '';
+  const pos=new Float32Array(segs.length*6);
+  for(let s=0;s<segs.length;s++){ const g=segs[s],o=s*6; pos[o]=g[0];pos[o+1]=g[1];pos[o+2]=g[2];pos[o+3]=g[3];pos[o+4]=g[4];pos[o+5]=g[5]; }
+  latGroup.clear(); const bg=new THREE.BufferGeometry(); bg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  latGroup.add(new THREE.LineSegments(bg,new THREE.LineBasicMaterial({color:0xd9a441})));
+  latGroup.visible=true; surfMesh.visible=false; kernMesh.visible=false; el('legend').style.display='none';
+  el('btnLatStl').disabled=false; el('domInfo').textContent='Gitter-Vorschau: '+segs.length.toLocaleString('de')+' Streben ('+(orient?'lastpfad-orientiert':'BCC')+').'; dirty=true;
+}
+function cylTris(a,b,r,seg,out){ const ax=b[0]-a[0],ay=b[1]-a[1],az=b[2]-a[2], L=Math.hypot(ax,ay,az); if(L<1e-6)return;
+  const dz=[ax/L,ay/L,az/L], up=Math.abs(dz[0])<0.9?[1,0,0]:[0,1,0];
+  let vx=[dz[1]*up[2]-dz[2]*up[1], dz[2]*up[0]-dz[0]*up[2], dz[0]*up[1]-dz[1]*up[0]]; const vl=Math.hypot(vx[0],vx[1],vx[2])||1; vx=[vx[0]/vl,vx[1]/vl,vx[2]/vl];
+  const wx=[dz[1]*vx[2]-dz[2]*vx[1], dz[2]*vx[0]-dz[0]*vx[2], dz[0]*vx[1]-dz[1]*vx[0]];
+  const r0=[],r1=[]; for(let s=0;s<seg;s++){ const th=2*Math.PI*s/seg, c=Math.cos(th)*r, sn=Math.sin(th)*r,
+    ox=vx[0]*c+wx[0]*sn, oy=vx[1]*c+wx[1]*sn, oz=vx[2]*c+wx[2]*sn;
+    r0.push([a[0]+ox,a[1]+oy,a[2]+oz]); r1.push([b[0]+ox,b[1]+oy,b[2]+oz]); }
+  for(let s=0;s<seg;s++){ const t=(s+1)%seg;
+    out.push([r0[s],r1[s],r1[t]],[r0[s],r1[t],r0[t]], [a,r0[t],r0[s]], [b,r1[s],r1[t]]); }
+}
+function stlBlob(tris){ const n=tris.length, buf=new ArrayBuffer(84+n*50), dv=new DataView(buf); dv.setUint32(80,n,true); let o=84;
+  for(const t of tris){ const ux=t[1][0]-t[0][0],uy=t[1][1]-t[0][1],uz=t[1][2]-t[0][2], vx=t[2][0]-t[0][0],vy=t[2][1]-t[0][1],vz=t[2][2]-t[0][2];
+    let nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx; const nl=Math.hypot(nx,ny,nz)||1; nx/=nl;ny/=nl;nz/=nl;
+    dv.setFloat32(o,nx,true);dv.setFloat32(o+4,ny,true);dv.setFloat32(o+8,nz,true);o+=12;
+    for(const p of t){ dv.setFloat32(o,p[0],true);dv.setFloat32(o+4,p[1],true);dv.setFloat32(o+8,p[2],true);o+=12; }
+    dv.setUint16(o,0,true);o+=2; }
+  return new Blob([buf],{type:'model/stl'});
+}
+function ab2b64(ab){ const bytes=new Uint8Array(ab); let bin=''; const chunk=0x8000; for(let i=0;i<bytes.length;i+=chunk){ bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+chunk)); } return btoa(bin); }
+async function exportLatticeSTL(){ const {segs}=latticeSegments(); if(!segs.length){ el('sWarn').textContent='Kein Voxelfeld.'; return; }
+  const seg=6, est=segs.length*seg*4;
+  if(est>3e6 && !confirm('~'+(est/1e6).toFixed(1)+' Mio Dreiecke — kann dauern/viel Speicher. Fortfahren? (sonst Strebe erhöhen / Voxelgröße vergröbern)')) return;
+  const b=el('btnLatStl'); b.textContent='⏳ STL…'; b.disabled=true; await new Promise(r=>setTimeout(r,10));
+  try{ const tris=[]; for(const s of segs) cylTris([s[0],s[1],s[2]],[s[3],s[4],s[5]],s[6],seg,tris);
+    await saveBlob(stlBlob(tris), baseName()+'_gitter.stl', [{description:'STL',accept:{'model/stl':['.stl']}}]);
+    b.textContent='✓ '+(tris.length/1000).toFixed(0)+'k Dreiecke';
+  }catch(err){ el('sWarn').textContent='Gitter-STL-Fehler: '+err.message; b.textContent='📦 Gitter-STL'; }
+  b.disabled=false; setTimeout(()=>{ b.textContent='📦 Gitter-STL'; },2500);
+}
+el('btnLat').addEventListener('click',previewLattice);
+el('btnLatStl').addEventListener('click',exportLatticeSTL);
+el('btnLatHide').addEventListener('click',showStruktur);
+
+// ---------------- Übergabe an Tessellation ----------------
+// Bauraum-STL = geschlossene Voxeloberfläche der SKO/CAO-Form (basePos, im Browser erzeugt).
+function exportBauraumSTL(){ if(!basePos||!basePos.length){ el('sWarn').textContent='Kein Voxelfeld — erst „Rechnen", SKO oder CAO.'; return; }
+  const tris=[]; for(let o=0;o<basePos.length;o+=9) tris.push([[basePos[o],basePos[o+1],basePos[o+2]],[basePos[o+3],basePos[o+4],basePos[o+5]],[basePos[o+6],basePos[o+7],basePos[o+8]]]);
+  saveBlob(stlBlob(tris), baseName()+'_bauraum.stl', [{description:'STL',accept:{'model/stl':['.stl']}}]);
+  el('domInfo').textContent='Bauraum-STL: '+tris.length.toLocaleString('de')+' Dreiecke (Voxelform).';
+}
+// Feld der betragsgrößten Hauptspannungsrichtung je Voxel.
+function flowField(){ if(!lastRes||!lastRes.vm) return null;
+  const N=bx*by*bz, dir=new Float32Array(N*3), has=new Uint8Array(N);
+  for(const e of lastRes.vm){ if(!e.pv)continue; let mi=0,ma=Math.abs(e.pv[0]); for(let t=1;t<3;t++){const a=Math.abs(e.pv[t]);if(a>ma){ma=a;mi=t;}}
+    const v=vidx(e.i,e.j,e.k); dir[3*v]=e.pd[mi][0]; dir[3*v+1]=e.pd[mi][1]; dir[3*v+2]=e.pd[mi][2]; has[v]=1; }
+  return {dir,has};
+}
+function traceFlow(){ const F=flowField(); if(!F){ el('sWarn').textContent='Kraftfluss braucht einen FEM-Lauf („Lösen").'; return null; }
+  const ds=(+el('flowStep').value||0.6)*h, maxS=Math.max(10,+el('flowMax').value|0), seedN=Math.max(1,+el('flowSeed').value|0);
+  const sampleDir=p=>{ const i=Math.floor(p[0]/h),j=Math.floor(p[1]/h),k=Math.floor(p[2]/h);
+    if(i<0||j<0||k<0||i>=bx||j>=by||k>=bz) return null; const v=vidx(i,j,k); if(mask[v]!==1||!F.has[v]) return null;
+    return [F.dir[3*v],F.dir[3*v+1],F.dir[3*v+2]]; };
+  // Saatpunkte, auf ~400 begrenzt
+  const cand=[]; for(let k=0;k<bz;k++)for(let j=0;j<by;j++)for(let i=0;i<bx;i++){ const v=vidx(i,j,k); if(mask[v]===1&&F.has[v]) cand.push([(i+.5)*h,(j+.5)*h,(k+.5)*h]); }
+  const stride=Math.max(seedN, Math.ceil(cand.length/400)); const lines=[];
+  for(let c=0;c<cand.length;c+=stride){ const s=cand[c], fwd=[], bwd=[];
+    for(const [arr,d0] of [[fwd,1],[bwd,-1]]){ let p=[s[0],s[1],s[2]], prev=null;
+      for(let st=0;st<maxS;st++){ let d=sampleDir(p); if(!d)break;
+        if(prev){ if(d[0]*prev[0]+d[1]*prev[1]+d[2]*prev[2]<0) d=[-d[0],-d[1],-d[2]]; } else if(d0<0) d=[-d[0],-d[1],-d[2]];
+        prev=d; p=[p[0]+d[0]*ds,p[1]+d[1]*ds,p[2]+d[2]*ds]; arr.push([p[0],p[1],p[2]]); } }
+    const pts=[]; for(let x=bwd.length-1;x>=0;x--)pts.push(bwd[x]); pts.push([s[0],s[1],s[2]]); for(const q of fwd)pts.push(q);
+    if(pts.length>2) lines.push(pts.map(q=>[+q[0].toFixed(3),+q[1].toFixed(3),+q[2].toFixed(3)])); }
+  return lines;
+}
+function showFlow(){ const lines=traceFlow(); if(!lines) return; rawFlowLines=lines; flowDel=new Set(); rebuildFlow(); }
+// Laplace-Glättung je Polylinie (Endpunkte fix)
+function smoothPolyline(pts, iters, lam){ if(iters<=0||pts.length<3) return pts.map(p=>p.slice());
+  let cur=pts.map(p=>p.slice());
+  for(let it=0;it<iters;it++){ const nxt=cur.map(p=>p.slice());
+    for(let i=1;i<cur.length-1;i++) for(let k=0;k<3;k++) nxt[i][k]=cur[i][k]+lam*((cur[i-1][k]+cur[i+1][k])*0.5-cur[i][k]);
+    cur=nxt; }
+  return cur; }
+// Anzeige + Export-Liste aus rawFlowLines (geglättet, ohne gelöschte); je Linie ein pickbares Objekt.
+function rebuildFlow(){ if(!rawFlowLines){ flowGroup.clear(); flowLines=null; return; }
+  const iters=Math.round(clamp(+el('flowSmooth').value,0,1)*6);
+  flowGroup.clear(); flowLines=[];
+  rawFlowLines.forEach((L,i)=>{ if(flowDel.has(i))return;
+    const s=smoothPolyline(L,iters,0.5).map(q=>[+q[0].toFixed(3),+q[1].toFixed(3),+q[2].toFixed(3)]); flowLines.push(s);
+    const pos=[]; for(let n=0;n<s.length-1;n++) pos.push(s[n][0],s[n][1],s[n][2], s[n+1][0],s[n+1][1],s[n+1][2]);
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+    const col=(i===moveSel)?0xffd166:(flowDelMode?0xff6b6b:(flowMoveMode?0x9ad0ff:0x4fd1e0));
+    const lm=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:col})); lm.userData={flowIdx:i}; flowGroup.add(lm); });
+  flowGroup.visible=true; el('btnFlowExp').disabled=flowLines.length===0;
+  let np=0; for(const L of flowLines) np+=L.length;
+  el('domInfo').textContent='Kraftfluss: '+flowLines.length+' Linien, '+np.toLocaleString('de')+' Punkte'+(flowDelMode?' — Löschmodus: Linie anklicken':'')+'.'; dirty=true;
+}
+function handleFlowDelete(e){ const rect=renderer.domElement.getBoundingClientRect();
+  const ndc=new THREE.Vector2(((e.clientX-rect.left)/rect.width)*2-1,-((e.clientY-rect.top)/rect.height)*2+1);
+  const ray=new THREE.Raycaster(); ray.params.Line.threshold=Math.max(h*0.8,0.3); ray.setFromCamera(ndc,camera);
+  const hits=ray.intersectObjects(flowGroup.children,false);
+  if(hits.length){ const idx=hits[0].object.userData.flowIdx; if(idx!=null){ flowDel.add(idx); rebuildFlow(); } } }
+function exportFlowJSON(){ if(!flowLines){ el('sWarn').textContent='Erst „Kraftfluss tracen".'; return; }
+  const data={frame:'mattheck', h, bx, by, bz, lines:flowLines};
+  saveBlob(new Blob([JSON.stringify(data)],{type:'application/json'}), baseName()+'_kraftfluss.json', [{description:'JSON',accept:{'application/json':['.json']}}]);
+}
+el('btnBauStl').addEventListener('click',exportBauraumSTL);
+el('btnFlow').addEventListener('click',showFlow);
+el('btnFlowExp').addEventListener('click',exportFlowJSON);
+// CAIO-Feld: dichtes Grid (occ + normalisierte vM + Hauptspannungs-Frame) für den impliziten Kern.
+function caioFieldData(){
+  if(!lastRes || !lastRes.vm) return null;
+  const Ntot=bx*by*bz;
+  const clipBau=(el('flClip')&&el('flClip').value==='bauraum'&&mask0)?mask0:null;   // CAIO auf Original-Bauraum statt optimierte Form
+  const src=clipBau||mask;
+  const occ=new Array(Ntot); for(let v=0;v<Ntot;v++) occ[v]=src[v]?1:0;
+  const field=new Float32Array(Ntot), dirs=new Float32Array(Ntot*9), pvals=new Float32Array(Ntot*3);
+  for(let v=0;v<Ntot;v++){ dirs[9*v]=1; dirs[9*v+4]=1; dirs[9*v+8]=1; }   // Frame-Default = Identität
+  let vmax=1e-9; for(const e of lastRes.vm){ if(e.vm>vmax)vmax=e.vm; }
+  for(const e of lastRes.vm){ const v=vidx(e.i,e.j,e.k); field[v]=Math.min(1,e.vm/vmax);
+    if(e.pd){ for(let a=0;a<3;a++){ dirs[9*v+3*a]=e.pd[a][0]; dirs[9*v+3*a+1]=e.pd[a][1]; dirs[9*v+3*a+2]=e.pd[a][2]; } }
+    if(e.pv){ for(let a=0;a<3;a++) pvals[3*v+a]=e.pv[a]; } }   // Hauptspannungswerte -> kohärenter Tensor im Kern
+  return { bx,by,bz,h, vmax, occ, field:Array.from(field,x=>+x.toFixed(3)), dirs:Array.from(dirs,x=>+x.toFixed(4)), pvals:Array.from(pvals,x=>+x.toFixed(4)) };
+}
+function exportCaioField(){ const d=caioFieldData(); if(!d){ el('sWarn').textContent='Erst „Lösen" (FEM) auf der aktuellen Form.'; return; }
+  d.frame='mattheck-caio';
+  saveBlob(new Blob([JSON.stringify(d)],{type:'application/json'}), baseName()+'_caiofeld.json', [{description:'JSON',accept:{'application/json':['.json']}}]);
+  el('domInfo').textContent='CAIO-Feld exportiert: '+bx+'×'+by+'×'+bz+' Voxel ('+lastRes.vm.length.toLocaleString('de')+' mit Frame).';
+}
+async function fieldLatticeRender(){
+  const fd=caioFieldData(); if(!fd){ el('sWarn').textContent='Erst „Lösen" (FEM) auf der aktuellen Form.'; return; }
+  const body=Object.assign(fd, { cell:(+el('flCell').value)||6, vol:clamp(+el('flVol').value,0.05,0.95), grading:clamp(+el('flGrad').value,0,1), caio:clamp(+el('flCaio').value,0,1), flowLen:clamp(+el('flLen').value,-1,1), flowSmooth:clamp(+el('flSm').value,0,1), voxel:(+el('flVoxel').value)||h*0.5, fillet:0.6, type:el('flType').value });
+  if(el('flClip').value==='mesh'){   // MESSERSCHARFER Clip: Bauraum-Mesh an den Kern schicken
+    if(!stlData||!stlData.tris||!stlData.tris.length){ el('sWarn').textContent='Scharfer Clip braucht eine geladene Bauraum-STL („＋ Bauraum-STL").'; return; }
+    const ab=await stlBlob(stlData.tris).arrayBuffer(); body.clipStl=ab2b64(ab);
+  }
+  const url=(el('kUrl').value||'http://localhost:5151/').replace(/\/*$/,'/')+'field-lattice';
+  const b=el('btnFieldLat'); b.textContent='⏳ Kern rechnet…'; b.disabled=true; el('sWarn').textContent='';
+  try{
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!r.ok) throw new Error('Server '+r.status+': '+(await r.text()).slice(0,140));
+    kernBuf=await r.arrayBuffer(); const g=new THREE.STLLoader().parse(kernBuf); g.computeBoundingBox();
+    const nTri=(g.attributes.position?g.attributes.position.count:0)/3, kb=(kernBuf.byteLength/1024).toFixed(0);
+    console.log('[FieldLattice] HTTP',r.status,'| Dreiecke',nTri,'| bbox',g.boundingBox);
+    if(nTri<1){ el('sWarn').textContent='0 Dreiecke — Server neu bauen („dotnet build") & starten, oder Parameter anpassen.'; b.textContent='⚠ leer'; b.disabled=false; return; }
+    kernMesh.geometry.dispose(); kernMesh.geometry=g; kernMesh.visible=true; surfMesh.visible=false; el('legend').style.display='none';
+    target.copy(g.boundingBox.getCenter(new THREE.Vector3())); dirty=true;
+    el('btnKernDl').disabled=false; el('btnKernHide').disabled=false;
+    el('domInfo').textContent='Feld-Lattice ('+el('flType').value+'): '+nTri.toLocaleString('de')+' Dreiecke ('+kb+' KB).';
+    b.textContent='✓ angezeigt ('+kb+' KB)';
+  }catch(err){ console.error('[FieldLattice]',err); el('sWarn').textContent='Feld-Lattice-Fehler: '+err.message+' — läuft der Server (neu gebaut)?'; b.textContent='⚠ Fehler'; }
+  b.disabled=false; setTimeout(()=>{ if(!kernMesh.visible) b.textContent='💠 Feld-Lattice rendern'; },3000);
+}
+el('btnCaioField').addEventListener('click',exportCaioField);
+el('btnFieldLat').addEventListener('click',fieldLatticeRender);
+// ---- Booleans (Resultat ↔ Bauraum/STL) ----
+if(window.BoolOps) BoolOps.mountPanel({
+  container: el('boolPanel'),
+  serverUrl: ()=> el('kUrl').value,
+  getResult: ()=> kernBuf,
+  getBuildTris: ()=> stlData && stlData.tris,
+  voxel: ()=> (+el('flVoxel').value)||0.5,
+  warn: (m)=> { el('sWarn').textContent=m; },
+  onResult: (buf)=>{ kernBuf=buf; const g=new THREE.STLLoader().parse(buf); g.computeBoundingBox();
+    kernMesh.geometry.dispose(); kernMesh.geometry=g; kernMesh.visible=true; surfMesh.visible=false; latGroup.visible=false;
+    el('legend').style.display='none'; target.copy(g.boundingBox.getCenter(new THREE.Vector3())); dirty=true;
+    el('btnKernDl').disabled=false; el('btnKernHide').disabled=false; }
+});
+el('flowSmooth').addEventListener('change',()=>{ el('vFlowSm').textContent=(+el('flowSmooth').value).toFixed(2); if(rawFlowLines) rebuildFlow(); });
+function setFlowMode(m){ flowDelMode=(m==='del'); flowMoveMode=(m==='move'); flowDrawMode=(m==='draw'); moveSel=-1;
+  if(m!=='draw'){ drawBuf=[]; updateDrawPreview(); }
+  el('btnFlowDel').classList.toggle('on',flowDelMode); el('btnFlowMove').classList.toggle('on',flowMoveMode); el('btnFlowDraw').classList.toggle('on',flowDrawMode);
+  renderer.domElement.style.cursor=(m==='none')?'':'crosshair'; if(rawFlowLines) rebuildFlow(); }
+function updateDrawPreview(){ drawPrevGroup.clear();
+  if(drawBuf.length>=2){ const seg=[]; for(let i=0;i<drawBuf.length-1;i++){ seg.push(drawBuf[i][0],drawBuf[i][1],drawBuf[i][2],drawBuf[i+1][0],drawBuf[i+1][1],drawBuf[i+1][2]); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(seg,3)); drawPrevGroup.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0xffd166}))); }
+  for(const p of drawBuf){ const s=new THREE.Mesh(new THREE.SphereGeometry(0.18*h,6,4),new THREE.MeshBasicMaterial({color:0xffd166})); s.position.set(p[0],p[1],p[2]); drawPrevGroup.add(s); }
+  dirty=true; }
+function finishDraw(){ if(!flowDrawMode) return; if(drawBuf.length>=2){ if(!rawFlowLines) rawFlowLines=[]; rawFlowLines.push(drawBuf.map(p=>p.slice())); }
+  drawBuf=[]; updateDrawPreview(); rebuildFlow(); el('domInfo').textContent='Linie hinzugefügt ('+(rawFlowLines?rawFlowLines.length:0)+' gesamt).'; }
+el('btnFlowDel').addEventListener('click',()=>{ if(!rawFlowLines){ el('sWarn').textContent='Erst „Kraftfluss tracen" oder „Linie zeichnen".'; return; } setFlowMode(flowDelMode?'none':'del'); });
+el('btnFlowMove').addEventListener('click',()=>{ if(!rawFlowLines){ el('sWarn').textContent='Erst „Kraftfluss tracen" oder „Linie zeichnen".'; return; } setFlowMode(flowMoveMode?'none':'move'); });
+el('btnFlowDraw').addEventListener('click',()=>{ setFlowMode(flowDrawMode?'none':'draw'); el('sWarn').textContent=flowDrawMode?'Zeichnen: in die Szene klicken; Doppelklick beendet die Linie, Esc verwirft.':''; });
+renderer.domElement.addEventListener('dblclick',()=>{ if(flowDrawMode) finishDraw(); });
+window.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(flowDrawMode&&drawBuf.length){ drawBuf=[]; updateDrawPreview(); } else if(flowDelMode||flowMoveMode||flowDrawMode) setFlowMode('none'); } });
+// 2026-07-13 (Horst-Idee): Zahlenwerte/Regler wirken erst nach Enter oder Wegklicken (siehe tessellation.html-Kommentar).
+document.addEventListener('keydown',e=>{ if(e.key==='Enter' && e.target && e.target.tagName==='INPUT' && e.target.type==='number'){ e.target.blur(); } });
+
+function loop(){ if(dirty){ updateCam(); renderer.render(scene,camera); dirty=false; } requestAnimationFrame(loop); }
+// Kragträger-Preset: Lager linke Fläche, Kraft rechts unten
+function preset(){ const BX=bx*h,BY=by*h,BZ=bz*h;
+  sups=[{x:0,  y:BY/2, z:BZ/2, sx:1.5*h, sy:BY+2*h, sz:BZ+2*h}];                     // linke Fläche fest
+  fors=[{x:BX, y:BY/2, z:BZ/2, sx:1.5*h, sy:BY+2*h, sz:BZ+2*h, fx:0,fy:0,fz:-500,mom:0}]; // rechte Fläche, Kraft -z
+  lastfaelle=[{ name:'Fall 1', w:1, sups, fors }]; activeLc=0;   // #35: Preset = genau ein Lastfall
+  sel={kind:'sup',idx:0}; fitVScale();
+}
+// #35: Beispiel-Presets (mehrere Lager & Kräfte, teils mehrere Lastfälle). Leicht erweiterbar — weitere Einträge hier ergänzen.
+const PRESETS={
+  bruecke:{ sz:[120,24,48], hv:3, agg:'ks', lastfaelle:[
+    {name:'Decklast (verteilt)', w:1, sups:[{x:10,y:12,z:4,sx:12,sy:28,sz:8},{x:110,y:12,z:4,sx:12,sy:28,sz:8}], fors:[{x:60,y:12,z:44,sx:108,sy:28,sz:8,fx:0,fy:0,fz:-1600,mom:0}]},
+    {name:'Einzellast mittig', w:1, sups:[{x:10,y:12,z:4,sx:12,sy:28,sz:8},{x:110,y:12,z:4,sx:12,sy:28,sz:8}], fors:[{x:60,y:12,z:44,sx:16,sy:28,sz:8,fx:0,fy:0,fz:-1400,mom:0}]} ]},
+  bracket:{ sz:[80,40,64], hv:4, agg:'ks', lastfaelle:[
+    {name:'Hauptlast (-Z)', w:1, sups:[{x:4,y:20,z:48,shape:'cyl',axis:'x',rad:6,len:8,sx:8,sy:16,sz:16},{x:4,y:20,z:16,shape:'cyl',axis:'x',rad:6,len:8,sx:8,sy:16,sz:16}], fors:[{x:76,y:20,z:32,sx:8,sy:24,sz:22,fx:0,fy:0,fz:-900,mom:0}]},
+    {name:'Seitenlast (+Y)', w:1, sups:[{x:4,y:20,z:48,shape:'cyl',axis:'x',rad:6,len:8,sx:8,sy:16,sz:16},{x:4,y:20,z:16,shape:'cyl',axis:'x',rad:6,len:8,sx:8,sy:16,sz:16}], fors:[{x:76,y:20,z:32,sx:8,sy:24,sz:22,fx:0,fy:400,fz:0,mom:0}]},
+    {name:'Seitenlast (-Y)', w:1, sups:[{x:4,y:20,z:48,shape:'cyl',axis:'x',rad:6,len:8,sx:8,sy:16,sz:16},{x:4,y:20,z:16,shape:'cyl',axis:'x',rad:6,len:8,sx:8,sy:16,sz:16}], fors:[{x:76,y:20,z:32,sx:8,sy:24,sz:22,fx:0,fy:-400,fz:0,mom:0}]} ]},
+  tisch:{ sz:[100,100,40], hv:5, agg:'ks', lastfaelle:[
+    {name:'Mittiglast', w:1, sups:[{x:15,y:15,z:4,sx:16,sy:16,sz:8},{x:85,y:15,z:4,sx:16,sy:16,sz:8},{x:15,y:85,z:4,sx:16,sy:16,sz:8},{x:85,y:85,z:4,sx:16,sy:16,sz:8}], fors:[{x:50,y:50,z:36,sx:34,sy:34,sz:8,fx:0,fy:0,fz:-1400,mom:0}]},
+    {name:'Alle 4 Kanten', w:1, sups:[{x:15,y:15,z:4,sx:16,sy:16,sz:8},{x:85,y:15,z:4,sx:16,sy:16,sz:8},{x:15,y:85,z:4,sx:16,sy:16,sz:8},{x:85,y:85,z:4,sx:16,sy:16,sz:8}], fors:[{x:50,y:90,z:36,sx:80,sy:12,sz:8,fx:0,fy:0,fz:-500,mom:0},{x:50,y:10,z:36,sx:80,sy:12,sz:8,fx:0,fy:0,fz:-500,mom:0},{x:90,y:50,z:36,sx:12,sy:80,sz:8,fx:0,fy:0,fz:-500,mom:0},{x:10,y:50,z:36,sx:12,sy:80,sz:8,fx:0,fy:0,fz:-500,mom:0}]} ]}
+};
+function applyPreset(key){ const P=PRESETS[key]; if(!P) return;
+  if(P.sz){ el('szx').value=P.sz[0]; el('szy').value=P.sz[1]; el('szz').value=P.sz[2]; } if(P.hv) el('hv').value=P.hv;
+  readDom();
+  lastfaelle=JSON.parse(JSON.stringify(P.lastfaelle)); activeLc=0; syncLcRefs();
+  if(P.agg && el('aggMode')) el('aggMode').value=P.agg;
+  sperren=[]; renderSperrList(); sel={kind:'sup',idx:0}; fitVScale(); rebuildDomain(); setActiveLc(0); }
+el('presetSel').addEventListener('change',e=>{ const v=e.target.value; if(!v)return;
+  if(v==='kragtraeger'){ readDom(); preset(); rebuildDomain(); renderLcBar(); renderRegList(); drawRegions(); attachGizmo(); renderRegEd(); }
+  else applyPreset(v);
+  e.target.value=''; });
+resize(); readDom(); preset(); rebuildDomain(); renderLcBar(); renderRegList(); renderSperrList(); selectRegion('sup',0); loop();
+</script>
+<div style="position:fixed;top:9px;right:16px;z-index:2000;font:800 17px system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:.3px;color:#4fd1a5;opacity:.92;pointer-events:none;user-select:none;text-shadow:0 1px 4px rgba(0,0,0,.45)">Bioni<span style="color:#e8eef2">CAD</span></div>
+<div id="f2dModal" style="display:none;position:fixed;inset:0;z-index:3000;background:#0b0e12;color:#e8eef2;font:13px system-ui,-apple-system,'Segoe UI',sans-serif">
+  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;background:#141b22;border-bottom:1px solid #223">
+    <b style="color:#4fd1a5;margin-right:6px">2D-Formfindung</b>
+    <button id="f2dSupR" class="mini">＋ Lager ▭</button><button id="f2dSupC" class="mini">＋ Lager ●</button>
+    <button id="f2dForR" class="mini">＋ Kraft ▭</button><button id="f2dForC" class="mini">＋ Kraft ●</button>
+    <button id="f2dRun" class="mini primary">▶ SIMP</button><button id="f2dPrev" class="mini">⚡ SKO</button>
+    <button id="f2dClr" class="mini">Leeren (alles)</button><button id="f2dReset" class="mini">↺ Reset (nur Rechnung)</button>
+    <span id="f2dInfo" style="opacity:.7;margin-left:6px;font-size:12px"></span>
+    <button id="f2dClose" class="mini" style="margin-left:auto">✕ schließen</button>
+  </div>
+  <div style="display:flex;height:calc(100% - 46px)">
+    <div style="flex:1;position:relative;background:#0e1116"><canvas id="c2d" style="width:100%;height:100%;display:block"></canvas></div>
+    <div style="width:220px;padding:10px;background:#0f151b;border-left:1px solid #223;overflow:auto">
+      <div style="border-bottom:1px solid #223;padding-bottom:8px;margin-bottom:8px">
+        <div class="row" style="margin-top:0"><button id="f2dStlBtn" class="mini">＋ STL-Schnitt laden</button><button id="f2dStlClr" class="mini">STL entf.</button></div>
+        <input id="f2dStlFile" type="file" accept=".stl" style="display:none">
+        <div class="grid3" style="margin-top:6px"><div><label>Rot X°</label><input id="f2dRx" type="number" value="0" step="15"></div><div><label>Rot Y°</label><input id="f2dRy" type="number" value="0" step="15"></div><div><label>Rot Z°</label><input id="f2dRz" type="number" value="0" step="15"></div></div>
+        <div class="ctrl" style="margin-top:6px"><label>Schnitt-Position</label><input id="f2dSlice" type="range" min="0" max="100" value="50" step="1"></div>
+      </div>
+      <div class="grid3"><div><label>Auflösung</label><input id="f2dRes" type="number" value="96" min="20" max="200" step="4"></div><div><label>Ziel-Vol %</label><input id="f2dVf" type="number" value="40" min="5" max="90" step="5"></div><div></div></div>
+      <div class="grid3" style="margin-top:6px"><div><label>Iterationen</label><input id="f2dIt" type="number" value="45" min="5" max="150" step="5"></div><div><label>Filter r</label><input id="f2dRmin" type="number" value="1.6" min="1.2" max="6" step="0.1"></div><div></div></div>
+      <div id="f2dEd" style="margin-top:10px"></div>
+      <p class="hint" style="margin-top:10px">Werkzeug oben wählen, dann auf der Fläche ziehen: Lager (grün), Kraft (orange). Kraft anklicken → Fx/Fy setzen (Fy positiv = nach unten). „▶ SIMP" optimiert, „⚡ SKO" grobe Vorschau. Verschieben: ohne Werkzeug anklicken + ziehen.</p>
+      <div style="border-top:1px solid #223;padding-top:8px;margin-top:8px">
+        <div style="font-size:12px;opacity:.75;margin-bottom:4px">Export (aktuelle Form)</div>
+        <div class="grid3"><div><label>Breite (mm)</label><input id="f2dExW" type="number" value="100" min="1" step="5"></div><div><label>Dicke (mm)</label><input id="f2dExT" type="number" value="5" min="0.2" step="0.5"></div><div></div></div>
+        <div class="row" style="margin-top:6px"><button id="f2dExSvg" class="mini">SVG</button><button id="f2dExDxf" class="mini">DXF</button><button id="f2dExStl" class="mini">STL</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

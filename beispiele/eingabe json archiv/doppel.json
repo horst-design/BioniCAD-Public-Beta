@@ -1,0 +1,535 @@
+{
+  "start": {
+    "position": [
+      38,
+      38,
+      0
+    ],
+    "durchmesser": 9.6
+  },
+  "ziele": [
+    {
+      "typ": "partikel",
+      "position": [
+        44.812,
+        33.011,
+        68.783
+      ],
+      "gewicht": 0.934
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        18.127,
+        34.002,
+        62.657
+      ],
+      "gewicht": 0.877
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        43.063,
+        31.157,
+        68.764
+      ],
+      "gewicht": 0.933
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        64.143,
+        41.243,
+        56.025
+      ],
+      "gewicht": 0.816
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        68.875,
+        45.144,
+        41.816
+      ],
+      "gewicht": 0.685
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        43.484,
+        58.092,
+        62.19
+      ],
+      "gewicht": 0.873
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        47.999,
+        13.475,
+        55.817
+      ],
+      "gewicht": 0.814
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        67.173,
+        47.611,
+        46.688
+      ],
+      "gewicht": 0.73
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        43.51,
+        12.634,
+        56.577
+      ],
+      "gewicht": 0.821
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        18.271,
+        58.771,
+        52.078
+      ],
+      "gewicht": 0.78
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        14.106,
+        41.444,
+        58.883
+      ],
+      "gewicht": 0.842
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        14.984,
+        58.461,
+        46.397
+      ],
+      "gewicht": 0.727
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        39.185,
+        7.217,
+        46.36
+      ],
+      "gewicht": 0.727
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        68.32,
+        40.485,
+        47.666
+      ],
+      "gewicht": 0.739
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        15.242,
+        24.635,
+        55.954
+      ],
+      "gewicht": 0.815
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        20.554,
+        21.884,
+        59.326
+      ],
+      "gewicht": 0.846
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        32.816,
+        54.541,
+        64.803
+      ],
+      "gewicht": 0.897
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        13.536,
+        54.602,
+        50.032
+      ],
+      "gewicht": 0.761
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        37.677,
+        18.65,
+        63.385
+      ],
+      "gewicht": 0.884
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        7.226,
+        39.588,
+        46.327
+      ],
+      "gewicht": 0.727
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        44.079,
+        69.267,
+        40.069
+      ],
+      "gewicht": 0.669
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        54.561,
+        64.19,
+        45.66
+      ],
+      "gewicht": 0.721
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        61.249,
+        59.724,
+        40.535
+      ],
+      "gewicht": 0.673
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        54.466,
+        44.923,
+        64.454
+      ],
+      "gewicht": 0.894
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        59.703,
+        26.144,
+        58.182
+      ],
+      "gewicht": 0.836
+    }
+  ],
+  "engine": "space_colonization",
+  "kanal_typ": "solid",
+  "wandstaerke": null,
+  "doppelbaum": true,
+  "zweiter_baum": {
+    "start": {
+      "position": [
+        38,
+        38,
+        76
+      ],
+      "durchmesser": 9.6
+    },
+    "ziele": [
+      {
+        "typ": "partikel",
+        "position": [
+          54.838,
+          15.658,
+          22.631
+        ],
+        "gewicht": 0.792
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          17.9,
+          20.753,
+          20.183
+        ],
+        "gewicht": 0.814
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          30.588,
+          67.971,
+          29.896
+        ],
+        "gewicht": 0.725
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          10.575,
+          44.496,
+          23.016
+        ],
+        "gewicht": 0.788
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          53.572,
+          38.145,
+          10.136
+        ],
+        "gewicht": 0.907
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          7.993,
+          35.417,
+          27.426
+        ],
+        "gewicht": 0.747
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          69.157,
+          39.229,
+          31.173
+        ],
+        "gewicht": 0.713
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          51.501,
+          39.466,
+          9.113
+        ],
+        "gewicht": 0.916
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          28.756,
+          61.75,
+          18.781
+        ],
+        "gewicht": 0.827
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          51.58,
+          9.771,
+          31.87
+        ],
+        "gewicht": 0.706
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          56.521,
+          14.825,
+          26.219
+        ],
+        "gewicht": 0.759
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          20.223,
+          63.691,
+          31.457
+        ],
+        "gewicht": 0.71
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          24.621,
+          65.046,
+          27.589
+        ],
+        "gewicht": 0.746
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          59.183,
+          22.635,
+          19.721
+        ],
+        "gewicht": 0.818
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          55.765,
+          57.429,
+          19.95
+        ],
+        "gewicht": 0.816
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          29.835,
+          60.901,
+          17.318
+        ],
+        "gewicht": 0.84
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          31.311,
+          53.976,
+          11.188
+        ],
+        "gewicht": 0.897
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          32.216,
+          42.687,
+          6.96
+        ],
+        "gewicht": 0.936
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          14.487,
+          53.523,
+          22.998
+        ],
+        "gewicht": 0.788
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          30.373,
+          46.541,
+          8.205
+        ],
+        "gewicht": 0.924
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          57.801,
+          63.036,
+          37.822
+        ],
+        "gewicht": 0.652
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          27.506,
+          7.902,
+          36.311
+        ],
+        "gewicht": 0.666
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          49.473,
+          46.989,
+          9.602
+        ],
+        "gewicht": 0.912
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          7.252,
+          46.276,
+          35.767
+        ],
+        "gewicht": 0.671
+      },
+      {
+        "typ": "partikel",
+        "position": [
+          67.35,
+          25.634,
+          35.869
+        ],
+        "gewicht": 0.67
+      }
+    ]
+  },
+  "schleifenanteil": 0,
+  "bauraum": {
+    "typ": "cylinder",
+    "groesse": [
+      76,
+      76,
+      76
+    ],
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "hindernisse": [
+    {
+      "typ": "sphere",
+      "position": [
+        38,
+        38,
+        38
+      ],
+      "radius": 26
+    }
+  ],
+  "mindestabstand": 2,
+  "pipeline_reihenfolge": [
+    "durchmesser",
+    "winkel",
+    "uebergaenge",
+    "schleifen"
+  ],
+  "pipeline_aktiv": {
+    "durchmesser": true,
+    "winkel": false,
+    "uebergaenge": true,
+    "schleifen": false
+  },
+  "uebergang_fillet_mm": 1,
+  "engine_parameter": {
+    "schrittweite": 2,
+    "einflussradius": 20,
+    "killabstand": 3.6,
+    "jitter": 0,
+    "glaettung_paesse": 2,
+    "glaettung_staerke": 0.5,
+    "murray_exponent": 3,
+    "min_durchmesser": 1,
+    "max_iterationen": 5100,
+    "seed": 7,
+    "voxel_groesse": 0.5
+  },
+  "output": {
+    "stl": true,
+    "voxelfeld": false,
+    "protokoll": true
+  }
+}

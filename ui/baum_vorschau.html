@@ -1,0 +1,2848 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>lattice-fraktal — Live-Vorschau</title>
+<style>
+  :root { --bg:#0e1116; --panel:#161b22; --line:#2a3340; --accent:#4fd1a5; --text:#e6edf3; --muted:#8b97a7; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text);
+    font-family:"Segoe UI",system-ui,sans-serif; overflow:hidden; }
+  #app { display:flex; height:100%; }
+  #panel { width:340px; min-width:340px; height:100%; overflow-y:auto;
+    background:var(--panel); border-right:1px solid var(--line); padding:16px 16px 50px; }
+  #view { flex:1; position:relative; }
+  canvas { display:block; }
+  h1 { font-size:17px; margin:0 0 2px; }
+  .sub { color:var(--muted); font-size:12px; margin:0 0 12px; line-height:1.4; }
+  details { border:1px solid var(--line); border-radius:9px; margin:0 0 9px; background:#12171e; }
+  summary { cursor:pointer; padding:9px 12px; font-size:12px; text-transform:uppercase;
+    letter-spacing:.05em; color:var(--text); font-weight:600; user-select:none; }
+  details[open] summary { border-bottom:1px solid var(--line); }
+  .body { padding:12px; }
+  .ctrl { margin:0 0 12px; }
+  .ctrl:last-child { margin-bottom:0; }
+  .ctrl label { display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
+  .ctrl label b { color:var(--accent); font-variant-numeric:tabular-nums; font-weight:600; }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  input[type=number]{ width:100%; background:#21303a; color:var(--text); border:1px solid var(--line);
+    border-radius:6px; padding:5px; font-size:12px; }
+  .check { display:flex; align-items:center; gap:9px; }
+  .check input { width:auto; height:16px; accent-color:var(--accent); }
+  .check label { display:block; margin:0; cursor:pointer; font-size:13px; }
+  select { width:100%; background:#21303a; color:var(--text); border:1px solid var(--line);
+    border-radius:8px; padding:7px; font-size:13px; }
+  select:focus,input:focus { outline:none; border-color:var(--accent); }
+  .row { display:flex; gap:8px; margin:14px 0 0; }
+  button { flex:1; background:#21303a; color:var(--text); border:1px solid var(--line);
+    border-radius:8px; padding:9px 10px; font-size:13px; cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--accent); }
+  button:disabled { opacity:.4; cursor:default; }
+  button.primary { background:var(--accent); color:#06231a; border-color:var(--accent); font-weight:600; }
+  button.mini { flex:0 0 auto; padding:4px 9px; font-size:12px; }
+  button.mini.on { background:var(--accent); color:#06231a; border-color:var(--accent); font-weight:600; }
+  .obsrow { border:1px solid var(--line); border-radius:7px; padding:8px; margin:0 0 8px; }
+  .obsrow.sel { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .obsrow .grid { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:6px; }
+  .obsrow .grid label { font-size:10.5px; color:var(--muted); display:block; margin-bottom:2px; }
+  .obshead { display:flex; gap:6px; align-items:center; }
+  .obshead select { flex:1; }
+  .olrow { display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:6px;
+    font-size:13px; color:var(--text); cursor:pointer; }
+  .olrow:hover { background:#1c2630; }
+  .olrow.on { background:var(--accent); color:#06231a; font-weight:600; }
+  .olrow .dot { width:9px; height:9px; border-radius:50%; flex:0 0 auto; }
+  .olempty { font-size:12px; color:var(--muted); padding:4px 2px; }
+  #stats { margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:9px;
+    font-size:12.5px; color:var(--muted); line-height:1.7; background:#12171e; }
+  #stats b { color:var(--text); font-variant-numeric:tabular-nums; }
+  .hint { font-size:11.5px; color:var(--muted); margin-top:12px; line-height:1.5; }
+  #legend { position:absolute; right:14px; bottom:14px; background:rgba(22,27,34,.85);
+    border:1px solid var(--line); border-radius:8px; padding:9px 12px; font-size:11.5px; color:var(--muted); }
+  #legend .bar { width:140px; height:9px; border-radius:5px; margin:5px 0 3px;
+    background:linear-gradient(90deg,#3a6ea5,#4fd1a5,#e8c45a,#e0664f); }
+  .lbl { display:flex; justify-content:space-between; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <select id="modul" title="Modul wechseln" style="border-color:var(--accent);font-weight:600;margin-bottom:14px">
+      <option value="baum" selected>Modul: Baum-Generator</option>
+      <option value="tess">Modul: Tessellation (Kristallgitter)</option>
+      <option value="matt">Modul: Mattheck / Struktur (FEM)</option>
+    </select>
+    <h1>lattice-fraktal</h1>
+    <p class="sub">Live-Design-Vorschau · Wachstum oder Fluss-Optimierung + Hess-Murray. Echter STL-Export: C#/PicoGK-Tool.</p>
+
+    <div class="ctrl"><label>Methode</label>
+      <select id="methode">
+        <option value="wachstum">Wachstum (Space-Colonization)</option>
+        <option value="fluss">Fluss-Optimierung (Physarum)</option>
+        <option value="template">Template (symmetrisch-rekursiv)</option>
+      </select></div>
+    <div class="ctrl"><label>Ordnung (gewachsen → perfekt) <b id="vOrdnung">0.00</b></label><input id="ordnung" type="range" min="0" max="1" value="0" step="0.05"></div>
+    <div class="ctrl"><label>Darstellung</label>
+      <select id="darstellung">
+        <option value="voll">Voll (Röhren)</option>
+        <option value="schnell">Schnell (Linien + Gelenk-Kugeln)</option>
+      </select></div>
+
+    <details open id="secOutliner"><summary>Szene</summary><div class="body">
+      <div class="check" style="margin-bottom:8px"><input id="zeigeZiele" type="checkbox"><label for="zeigeZiele">Zielpunkte anzeigen (gelb)</label></div>
+      <div class="row" style="margin-top:0"><button id="btnAddTarget" class="mini">＋ Zielpunkt setzen</button></div>
+      <div class="row" style="margin-top:6px"><button id="btnMaterialize" class="mini">Ziele → Punkte</button><button id="btnClearTargets" class="mini">Punkte leeren</button></div>
+      <div class="check" style="margin-top:6px"><input id="nurManuell" type="checkbox"><label for="nurManuell">Nur bearbeitete Ziele verwenden</label></div>
+      <div class="row" style="margin-top:8px"><button id="btnFlangeMode" class="mini">⬤ Flansch-Modus (Auslässe zeigen)</button></div>
+      <p class="hint" style="margin:6px 0 0">Flansch-Modus an → klick auf einen <b>Auslass</b> (Astende) setzt dort einen Flansch mit der Standardgröße; erneuter Klick wählt ihn zum Bearbeiten. Der <b>Einlass</b> (grün, an der Wurzel) ist jederzeit anklickbar.</p>
+      <p class="hint" style="margin:6px 0 8px">„＋ Zielpunkt": in die Szene klicken (auf Fläche/halbe Höhe). „Ziele → Punkte" wandelt die automatische Wolke + STL-Kolonisierung in bearbeitbare Punkte um. Verschieben per Gumball, löschen mit Entf.</p>
+      <div id="outliner"></div>
+      <div id="flangeList"></div>
+      <div id="selProps"></div>
+      <p class="hint" style="margin-top:8px">Objekt anklicken (hier oder im 3D-Fenster) → Gumball. Start lässt sich beim Einzelbaum frei ziehen.</p>
+    </div></details>
+
+    <details open id="secZielwolke"><summary>Zielwolke</summary><div class="body">
+      <div class="ctrl"><label>Anzahl Ziele (global) <b id="vN">40</b></label><input id="N" type="range" min="0" max="500" value="40" step="1"></div>
+      <div class="ctrl"><label>Zufalls-Seed <b id="vSeed">7</b></label><input id="seed" type="range" min="1" max="100" value="7" step="1"></div>
+      <div class="ctrl"><label>Zielmuster</label>
+        <select id="pattern">
+          <option value="wolke">Volumen-Wolke (Point-to-Volume)</option>
+          <option value="kuppel">Kuppel (Point-to-Surface)</option>
+          <option value="deck">Deckfläche (Point-to-Area)</option>
+          <option value="ring">Ring</option>
+        </select></div>
+      <div class="ctrl"><label>z-Bereich von <b id="vZmin">55</b>%</label><input id="zmin" type="range" min="0" max="100" value="55" step="1"></div>
+      <div class="ctrl"><label>z-Bereich bis <b id="vZmax">100</b>%</label><input id="zmax" type="range" min="0" max="100" value="100" step="1"></div>
+      <div class="ctrl"><label>Gewichtung der Ziele</label>
+        <select id="weight">
+          <option value="uniform">gleich (jedes Ziel gleich)</option>
+          <option value="random">zufällig</option>
+          <option value="hoehe">nach Höhe (höher = stärker)</option>
+        </select></div>
+    </div></details>
+
+    <details id="secAttr"><summary>Attraktoren (Zielbereiche)</summary><div class="body">
+      <p class="hint" style="margin-top:0">Zusätzliche Zielpunkte gezielt in gesetzten Bereichen (zur globalen Wolke). Tipp: „Anzahl Ziele (global)" auf 0, um nur Attraktoren zu nutzen.</p>
+      <div id="attrList"></div>
+      <div class="row" style="margin-top:0"><button id="btnAddAttr" class="mini">+ Kugel</button><button id="btnAddAttrBox" class="mini">+ Box</button></div>
+    </div></details>
+
+    <details open><summary>Bauraum & Start</summary><div class="body">
+      <div class="ctrl"><label>Bauraum-Größe (mm) <b id="vBox">50</b></label><input id="box" type="range" min="20" max="120" value="50" step="1"></div>
+      <div class="ctrl"><label>Bauraum-Form</label>
+        <select id="shape">
+          <option value="box">Box</option>
+          <option value="cylinder">Zylinder</option>
+          <option value="sphere">Kugel</option>
+        </select></div>
+      <div class="ctrl"><label>Start X (mm) <b id="vSx">25</b></label><input id="sx" type="range" min="0" max="120" value="25" step="1"></div>
+      <div class="ctrl"><label>Start Y (mm) <b id="vSy">25</b></label><input id="sy" type="range" min="0" max="120" value="25" step="1"></div>
+      <div class="ctrl"><label>Start Z (mm) <b id="vSz">0</b></label><input id="sz" type="range" min="0" max="120" value="0" step="1"></div>
+      <div class="ctrl"><label>Bauraum-Transparenz (importiert) <b id="vBauOpa">0.25</b></label><input id="bauOpa" type="range" min="0" max="1" value="0.25" step="0.05"></div>
+    </div></details>
+
+    <details open><summary>🌊 Kraftfluss-Verzahnung</summary><div class="body">
+      <div class="row"><button id="btnFlowImp" class="mini">＋ Kraftfluss (JSON)</button><button id="btnBauImp" class="mini">＋ Bauraum-STL</button><button id="btnFlowClr" class="mini">Fluss leeren</button>
+        <input id="flowImpFile" type="file" accept=".json" style="display:none"><input id="bauImpFile" type="file" accept=".stl" style="display:none"></div>
+      <div class="ctrl" style="margin-top:8px"><label>Fluss-Punktdichte (Detail/Folgetreue) <b id="vFlowDens">800</b></label><input id="flowDens" type="range" min="100" max="4000" value="800" step="50"></div>
+      <div class="ctrl"><label>Auslässe (max Linien, 0=alle) <b id="vFlowLines">alle</b></label><input id="flowLines" type="range" min="0" max="60" value="0" step="1"></div>
+      <div class="ctrl"><label>Folge-Intensität (Äste kleben an Linien) <b id="vFlowFollow">0.5</b></label><input id="flowFollow" type="range" min="0" max="1" value="0.5" step="0.05"></div>
+      <p id="flowImpInfo" class="hint" style="margin:6px 0 0">Lädt Mattheck-Kraftfluss-Linien als Wachstums-Ziele. Start-Kugel (Wurzel) aufs Lager setzen, Modus „Wachstum" → Äste wachsen entlang der Lastpfade. Gleiche Koordinaten wie die Bauraum-STL.</p>
+    </div></details>
+
+    <details><summary>🍃 Enden verbinden (Blattadern)</summary><div class="body">
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer"><input type="checkbox" id="netzOn" style="width:auto"> Enden verbinden aktiv</label>
+      <div class="ctrl" style="margin-top:6px"><label>Distanz-Einfluss (0 keine … 1 alle) <b id="vEndConnect">0.00</b></label><input id="endConnect" type="range" min="0" max="1" value="0" step="0.05"></div>
+      <div class="ctrl"><label>Durchmesserverhältnis (0–1) <b id="vNetzRatio">0.50</b></label><input id="netzRatio" type="range" min="0" max="1" value="0.5" step="0.05"></div>
+      <div class="ctrl"><label>Kurvigkeit (Spline, 0 gerade … 1 weich) <b id="vNetzCurve">0.50</b></label><input id="netzCurve" type="range" min="0" max="1" value="0.5" step="0.05"></div>
+      <div class="row" style="margin-top:6px"><button id="btnNetz" class="mini">🍃 Verbinden aktualisieren</button></div>
+      <p id="netzInfo" class="hint" style="margin:6px 0 0">Verbindet nahe Blatt-Enden mit organischen Spline-Adern (Tangenten = Astrichtung, verjüngt nach Wachstumslogik, violett). Nach dem Wachsen „aktualisieren".</p>
+    </div></details>
+
+    <details id="secWachstum"><summary>Wachstum (Engine)</summary><div class="body">
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;cursor:pointer;background:#17242b;padding:6px 8px;border-radius:7px;border:1px solid var(--line,#2a3340)"><input type="checkbox" id="autoRobust" style="width:auto"> <b>Auto (robust)</b> — Parameter an Ziel-Dichte skalieren</label>
+      <div class="ctrl" style="margin-top:6px"><label>Buschigkeit (0 Stamm … 1 vielverzweigt) <b id="vBushiness">0.50</b></label><input id="bushiness" type="range" min="0" max="1" value="0.5" step="0.05"></div>
+      <p class="hint" style="margin:0 0 8px">Auto an → Schrittweite/Einfluss/Killabstand werden automatisch aus dem lokalen Zielabstand berechnet (die drei mm-Regler unten werden dann übersteuert). Nur Buschigkeit regeln: 0 = dicker Stamm mit wenigen Ästen, 1 = fein &amp; gleichmäßig vielverzweigt.</p>
+      <div class="ctrl"><label>Schrittweite (mm) <b id="vStep">2.0</b></label><input id="step" type="range" min="0.6" max="5" value="2" step="0.1"></div>
+      <div class="ctrl"><label>Einflussradius (mm) <b id="vInfl">16</b></label><input id="infl" type="range" min="4" max="60" value="16" step="1"></div>
+      <div class="ctrl"><label>Killabstand (mm) <b id="vKill">4.0</b></label><input id="kill" type="range" min="1" max="12" value="4" step="0.2"></div>
+      <div class="ctrl"><label>Jitter (Zufall) <b id="vJit">0.0</b></label><input id="jitter" type="range" min="0" max="1" value="0" step="0.05"></div>
+      <div class="ctrl"><label>Glättung Pässe <b id="vSmooth">2</b></label><input id="smooth" type="range" min="0" max="8" value="2" step="1"></div>
+      <div class="ctrl"><label>Glättung Stärke <b id="vSmoothS">0.50</b></label><input id="smoothS" type="range" min="0" max="1" value="0.5" step="0.05"></div>
+      <div class="ctrl"><label>Max. Iterationen <b id="vMaxIt">4000</b></label><input id="maxit" type="range" min="200" max="6000" value="4000" step="100"></div>
+    </div></details>
+
+    <details open id="secTemplate"><summary>Template / Verzweigungsregeln</summary><div class="body">
+      <p class="hint" style="margin-top:0">Nur aktiv bei <b>Methode = Template</b>. Regelbasierter rekursiver Baum; „Natürlichkeit" führt von perfekt zu organisch.</p>
+      <div class="ctrl"><label>Verzweigungsregel</label>
+        <select id="trule">
+          <option value="split">Aufspalten (dichotom)</option>
+          <option value="axial">Stamm + Seitenäste (monopodial)</option>
+          <option value="fork">Gabelung (sympodial, 2er)</option>
+        </select></div>
+      <div class="ctrl"><label>Symmetrie</label>
+        <select id="tsym">
+          <option value="radial">Radial (n-zählig)</option>
+          <option value="bilateral">Bilateral (eine Ebene)</option>
+          <option value="phyllotaxis">Phyllotaxis (Goldwinkel)</option>
+        </select></div>
+      <div class="ctrl"><label>Ebenen (Tiefe) <b id="vTlev">4</b></label><input id="tlev" type="range" min="1" max="8" value="4" step="1"></div>
+      <div class="ctrl"><label>Äste pro Knoten <b id="vTchild">2</b></label><input id="tchild" type="range" min="1" max="6" value="2" step="1"></div>
+      <div class="ctrl"><label>Astwinkel (°) <b id="vTang">32</b></label><input id="tang" type="range" min="0" max="90" value="32" step="1"></div>
+      <div class="ctrl"><label>Astwinkel-Variation (°) <b id="vTangvar">0</b></label><input id="tangvar" type="range" min="0" max="45" value="0" step="1"></div>
+      <div class="ctrl"><label>Längenverhältnis <b id="vTratio">0.72</b></label><input id="tratio" type="range" min="0.4" max="0.98" value="0.72" step="0.01"></div>
+      <div class="ctrl"><label>Längen-Variation <b id="vTlenvar">0.00</b></label><input id="tlenvar" type="range" min="0" max="0.6" value="0" step="0.02"></div>
+      <div class="ctrl"><label>Startlänge (mm) <b id="vTlen">18</b></label><input id="tlen" type="range" min="5" max="40" value="18" step="1"></div>
+      <div class="ctrl"><label>Verdrehung pro Ebene (°) <b id="vTtwist">90</b></label><input id="ttwist" type="range" min="0" max="180" value="90" step="5"></div>
+      <div class="ctrl"><label>Tropismus (↓ −1 … +1 ↑) <b id="vTtrop">0.00</b></label><input id="ttrop" type="range" min="-1" max="1" value="0" step="0.05"></div>
+      <div class="ctrl"><label>Natürlichkeit (perfekt → organisch) <b id="vTnat">0.00</b></label><input id="tnat" type="range" min="0" max="1" value="0" step="0.05"></div>
+    </div></details>
+
+    <details><summary>Durchmesser</summary><div class="body">
+      <div class="ctrl"><label>Startdurchmesser (mm) <b id="vDia">8.0</b></label><input id="dia" type="range" min="2" max="20" value="8" step="0.2"></div>
+      <div class="ctrl"><label>Murray-Exponent <b id="vExp">3.0</b></label><input id="exp" type="range" min="2" max="4" value="3" step="0.1"></div>
+      <div class="ctrl"><label>Min. Durchmesser (mm) <b id="vMinD">0.0</b></label><input id="mind" type="range" min="0" max="6" value="0" step="0.1"></div>
+      <div class="ctrl"><label>Durchmesser-Glättung <b id="vDiaS">0</b></label><input id="diasmooth" type="range" min="0" max="8" value="0" step="1"></div>
+      <div class="ctrl"><label>Durchfluss: dicke Enden drosseln <b id="vFloweq">0.00</b></label><input id="floweq" type="range" min="0" max="1" value="0" step="0.05"></div>
+      <div class="ctrl"><label>Durchfluss: dünne Kanäle aufweiten <b id="vWideneq">0.00</b></label><input id="wideneq" type="range" min="0" max="1" value="0" step="0.05"></div>
+      <p class="hint" style="margin-top:0">Zwei Wege zum gleichen Auslass-Durchfluss: (1) dicke/kurze Enden verjüngen (weniger Gesamtdurchsatz) · (2) dünne/lange Äste verdicken (mehr Material). Wirkung am Analyse-Wert „Fluss-Ausgleich" (→ 1.0). Beide kombinierbar.</p>
+      <div class="check"><input id="volclamp" type="checkbox"><label for="volclamp">Ast-Verhältnis begrenzen (Fertigung, verfälscht Murray)</label></div>
+      <div class="ctrl" id="ctrlVolratio" style="margin-top:10px"><label>Min. Ast-Verhältnis (Kind/Eltern) <b id="vVolR">0.30</b></label><input id="volratio" type="range" min="0.01" max="1" value="0.3" step="0.01"></div>
+      <div class="check"><input id="quality" type="checkbox" checked><label for="quality">Glatte Gelenke (keine Spalten)</label></div>
+      <div class="check" style="margin-top:10px"><input id="hollow" type="checkbox"><label for="hollow">Hohle Kanäle (Strömung)</label></div>
+      <div class="ctrl" id="ctrlWand" style="margin-top:10px"><label>Wandstärke (mm) <b id="vWand">0.8</b></label><input id="wand" type="range" min="0.3" max="3" value="0.8" step="0.1"></div>
+      <p class="hint" style="margin-top:0">Hohl wirkt erst in der echten Kern-Geometrie (🧊) und im Export — die Live-Vorschau zeigt weiter Vollkörper.</p>
+    </div></details>
+
+    <details><summary>Flansch-Enden</summary><div class="body">
+      <div class="check"><input id="flansch" type="checkbox"><label for="flansch">Flansch an <b>jedem</b> Auslass (Standard)</label></div>
+      <div class="ctrl" style="margin-top:10px"><label>Standard-⌀ (mm) <b id="vFlanschdia">6</b></label><input id="flanschdia" type="range" min="1" max="30" value="6" step="0.5"></div>
+      <div class="ctrl"><label>Standard-Dicke (mm) <b id="vFlanschdicke">1.5</b></label><input id="flanschdicke" type="range" min="0.3" max="8" value="1.5" step="0.1"></div>
+      <div class="ctrl"><label>Standard-Winkel X (°) <b id="vFlanschwx">0</b></label><input id="flanschwx" type="range" min="-60" max="60" value="0" step="1"></div>
+      <div class="ctrl"><label>Standard-Winkel Y (°) <b id="vFlanschwy">0</b></label><input id="flanschwy" type="range" min="-60" max="60" value="0" step="1"></div>
+      <p class="hint" style="margin-top:0">Diese Werte sind der <b>Standard</b> für neue Flansche. <b>Einzelner Flansch:</b> einen Zielpunkt oder den Startpunkt (Einlass) anklicken → im Feld unten Flansch aktivieren und ⌀/Dicke/Winkel pro Flansch anpassen. Loch = Auslass-⌀, bei hohlen Kanälen automatisch durchbohrt.</p>
+    </div></details>
+
+    <details><summary>Physik (Durchfluss-Simulation)</summary><div class="body">
+      <div class="check"><input id="physviz" type="checkbox"><label for="physviz">Druckfeld in 3D einfärben</label></div>
+      <div class="ctrl" style="margin-top:10px"><label>Medium</label>
+        <select id="medium"><option value="wasser">Wasser</option><option value="oel">Öl</option><option value="luft">Luft</option></select></div>
+      <div class="ctrl"><label>Einlassdruck (bar) <b id="vPbar">1.0</b></label><input id="pbar" type="range" min="0.1" max="10" value="1" step="0.1"></div>
+      <div class="check" style="margin-top:6px"><input id="gravity" type="checkbox"><label for="gravity">Schwerkraft (statischer Druckanteil)</label></div>
+      <div class="check" style="margin-top:6px"><input id="auslasswerte" type="checkbox"><label for="auslasswerte">Auslasswerte im 3D anzeigen</label></div>
+      <div style="margin-top:10px;padding:9px;border:1px solid var(--line);border-radius:8px;background:#12171e;font-size:12.5px;line-height:1.7;color:var(--muted)">
+        Gesamt-Durchfluss: <b id="pQ" style="color:var(--text)">–</b><br>
+        Durchfluss/Auslass: <b id="pQo" style="color:var(--text)">–</b><br>
+        max. Reynolds: <b id="pRe" style="color:var(--text)">–</b>
+      </div>
+      <p class="hint" style="margin-top:6px">Hagen-Poiseuille: Einlass = Wurzel (Druck), Auslässe = Umgebung. Rot = hoher Druck (Einlass), Blau = Umgebung (Auslass).</p>
+    </div></details>
+
+    <details><summary>Kollision</summary><div class="body">
+      <div class="check"><input id="collide" type="checkbox"><label for="collide">Äste kollisionsfrei trennen</label></div>
+      <div class="ctrl" id="ctrlSep" style="margin-top:10px"><label>Trennabstand (mm) <b id="vSep">0.5</b></label><input id="sepgap" type="range" min="0" max="4" value="0.5" step="0.1"></div>
+    </div></details>
+
+    <details><summary>Doppelbaum (Wärmetauscher)</summary><div class="body">
+      <div class="check"><input id="dual" type="checkbox"><label for="dual">Zwei verschränkte Bäume (heiß/kalt)</label></div>
+      <div class="ctrl" id="ctrlMindist" style="margin-top:10px"><label>Mindestabstand (mm) <b id="vMin">2.0</b></label><input id="mindist" type="range" min="0.5" max="10" value="2" step="0.5"></div>
+      <div class="check" id="ctrlConnect" style="margin-top:10px"><input id="connect" type="checkbox"><label for="connect">Enden verbinden (Kapillaren)</label></div>
+      <div class="ctrl" id="ctrlConnR" style="margin-top:10px"><label>Verbindungsreichweite (mm) <b id="vConnR">6</b></label><input id="connr" type="range" min="1" max="40" value="6" step="0.5"></div>
+    </div></details>
+
+    <details><summary>Hindernisse (Sperrzonen)</summary><div class="body">
+      <div id="obsList"></div>
+      <div class="row" style="margin-top:0"><button id="btnAddObs" class="mini">+ Kugel</button><button id="btnAddBox" class="mini">+ Box</button></div>
+      <div class="row" style="margin-top:6px"><button id="btnMove" class="mini on">⤧ Verschieben</button><button id="btnRotate" class="mini">⟳ Drehen</button><button id="btnScale" class="mini">⤢ Skalieren</button></div>
+      <p class="hint" style="margin-top:6px">Hindernis im 3D-Fenster anklicken → Gumball erscheint. Ziehen verschiebt/skaliert; Zahlenfelder bleiben synchron.</p>
+      <div class="ctrl" style="margin-top:12px"><label>Clearance (mm) <b id="vClr">1.5</b></label><input id="clr" type="range" min="0" max="6" value="1.5" step="0.5"></div>
+    </div></details>
+
+    <details id="secImport"><summary>STL-Import</summary><div class="body">
+      <div class="check" style="margin-bottom:8px"><input id="impSplit" type="checkbox" checked><label for="impSplit">In Einzelobjekte aufteilen (Komponenten)</label></div>
+      <div class="row" style="margin-top:0"><label for="stlFile" class="mini" style="display:inline-block;text-align:center;background:#21303a;border:1px solid var(--line);border-radius:8px;padding:7px 10px;cursor:pointer;flex:1">⬆ STL-Datei wählen</label></div>
+      <input id="stlFile" type="file" accept=".stl" style="display:none">
+      <p class="hint" id="impInfo" style="margin-top:6px">Mehrere Objekte werden getrennt; jedem kannst du unten eine Rolle zuweisen: Oberfläche/Volumen kolonisieren, Bauraum, Hindernis (kollisionsfrei). „Zielpunkte" steuert die Anzahl. Hindernis nutzt den Clearance-Regler. Importe sind sitzungsbezogen.</p>
+      <div id="impList" style="margin-top:8px"></div>
+    </div></details>
+
+    <details id="secOptim"><summary>Optimierung (Kern-Export)</summary><div class="body">
+      <p class="hint" style="margin-top:0">Keine Live-Vorschau — diese Werte landen im <b>optimierung</b>-Block der eingabe.json und steuern den <b>optimize</b>-Befehl (Fluss-Optimierer) im C#-Kern.</p>
+      <div class="ctrl"><label>Gitter-Auflösung <b id="vOres">16</b></label><input id="ores" type="range" min="8" max="32" value="16" step="1"></div>
+      <div class="ctrl"><label>Iterationen <b id="vOiter">150</b></label><input id="oiter" type="range" min="40" max="400" value="150" step="10"></div>
+      <div class="ctrl"><label>Anpassungsrate <b id="vOrate">0.20</b></label><input id="orate" type="range" min="0.05" max="0.5" value="0.2" step="0.01"></div>
+      <div class="ctrl"><label>Fluss-Exponent γ <b id="vOgam">1.6</b></label><input id="ogam" type="range" min="1" max="3" value="1.6" step="0.1"></div>
+      <div class="ctrl"><label>Kappen (Anteil Senken-Fluss) <b id="vOprune">0.010</b></label><input id="oprune" type="range" min="0.002" max="0.05" value="0.01" step="0.002"></div>
+      <div class="ctrl"><label>Max. Radius (mm) <b id="vOmaxr">2.0</b></label><input id="omaxr" type="range" min="0.5" max="6" value="2" step="0.1"></div>
+      <div class="ctrl"><label>Gitter-Jitter <b id="vOjit">0.35</b></label><input id="ojit" type="range" min="0" max="0.6" value="0.35" step="0.05"></div>
+      <div class="ctrl"><label>Glättung (Knoten) <b id="vOglatt">5</b></label><input id="oglatt" type="range" min="0" max="12" value="5" step="1"></div>
+      <div class="ctrl"><label>Mattheck-Fillet (mm) <b id="vOfillet">0.6</b></label><input id="ofillet" type="range" min="0" max="2" value="0.6" step="0.1"></div>
+    </div></details>
+
+    <div class="row"><button id="btnUndo">↶ Undo</button><button id="btnRedo">↷ Redo</button><button id="btnSave">💾 Speichern</button></div>
+    <div class="row"><button id="btnSaveFile">💾 Datei</button><button id="btnLoadFile">📂 laden</button><input id="setFile" type="file" accept=".json" style="display:none"></div>
+    <div class="row"><button id="btnRandom">🎲 Seed</button><button id="btnReset">↺ Standard</button></div>
+    <div class="row" id="rowAusschleifen"><button id="btnAusschleifen" class="primary">▶ Ausschleifen</button></div>
+
+    <details open><summary>Kern-Geometrie (echte STL / 🧊)</summary><div class="body">
+      <div class="ctrl"><label>Voxelgröße (mm) <b id="vVoxel">0.50</b></label><input id="voxel" type="range" min="0.2" max="1" value="0.5" step="0.05"></div>
+      <div class="ctrl"><label>Fillet / Verrundung (mm) <b id="vFilletmm">0.6</b></label><input id="filletmm" type="range" min="0" max="2" value="0.6" step="0.1"></div>
+      <p class="hint" style="margin-top:0">Kleinere Voxel = feiner, aber langsamer. Gilt für „Echte Geometrie" und den Skelett-Export/bake.</p>
+    </div></details>
+
+    <div class="ctrl"><label>Export-Dateiname</label><input id="expName" type="text" value="lattice" style="width:100%;background:#21303a;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px;font-size:13px"></div>
+    <div class="row"><button id="btnStl" class="primary">⬇ STL</button><button id="btnJson">⬇ eingabe.json</button></div>
+    <div class="row"><button id="btnSkelett">⬇ skelett.json (Kern-Vertrag · exakt)</button></div>
+    <div class="row"><button id="btnReal" class="primary">🧊 Echte Geometrie (Kern)</button><button id="btnRealStl">⬇ Echte STL</button></div>
+    <p class="hint" style="margin-top:0">Zeigt die echte PicoGK-Voxel-Geometrie. Voraussetzung: Server läuft (<code>dotnet run -- serve</code>) und diese Seite ist über <code>http://localhost:5151/</code> geöffnet (nicht als Datei). Jede Parameteränderung schaltet zurück zur Live-Vorschau.</p>
+
+    <details><summary>Booleans (Resultat ↔ Bauraum/STL)</summary><div class="body">
+      <div id="boolPanel"></div>
+      <p class="hint" style="margin-top:6px">Verrechnet die zuletzt gerenderte Kern-Geometrie (A) mit der Bauraum-STL oder einer importierten STL (B): Vereinen, Abziehen, Split (innen/außen). Wasserdicht im Kern. Erst „🧊 Echte Geometrie" rendern, dann anwenden; Ergebnis über „⬇ Echte STL" sicherbar.</p>
+    </div></details>
+
+    <div id="stats">
+      Knoten: <b id="sNodes">–</b> · Segmente: <b id="sSeg">–</b><br>
+      Ziele erreicht: <b id="sReached">–</b><br>
+      Wurzel ⌀ <b id="sRoot">–</b> · kleinstes Blatt ⌀ <b id="sLeaf">–</b> mm
+      <hr style="border:none;border-top:1px solid var(--line);margin:8px 0">
+      <span style="color:var(--accent)">Strömungs-Analyse</span><br>
+      Auslässe: <b id="aLeaves">–</b> · Murray-D³-Abw.: <b id="aD3">–</b><br>
+      Fluss-Ausgleich (Pfad-Widerstand max/min): <b id="aR">–</b><br>
+      Leitungsvolumen: <b id="aVol">–</b> mm³
+    </div>
+    <p class="hint">Maus: ziehen = drehen · Rad = zoomen. „⬇ eingabe.json" reproduziert den Baum im C#/PicoGK-Tool.</p>
+  </div>
+
+  <div id="view">
+    <div id="legend"><div class="lbl"><span>dünn</span><span>dick</span></div><div class="bar"></div><div>Aststärke (Hess-Murray)</div></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/TransformControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/STLLoader.js"></script>
+<script src="boolean_ops.js"></script>
+<script>
+// ---------- Vektor-Helfer ----------
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const scale=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const lenSq=a=>a[0]*a[0]+a[1]*a[1]+a[2]*a[2];
+const len=a=>Math.sqrt(lenSq(a));
+const distSq=(a,b)=>lenSq(sub(a,b));
+const norm=a=>{const l=len(a); return l>1e-9?[a[0]/l,a[1]/l,a[2]/l]:[0,0,0];};
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+// Orthonormales Paar (u,v) senkrecht zu d — Basis für symmetrische Astfächer.
+const frameOf=d=>{ const up=Math.abs(d[2])<0.9?[0,0,1]:[1,0,0]; const u=norm(cross(up,d)); const v=cross(d,u); return [u,v]; };
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+function mulberry32(seed){let t=seed>>>0; return function(){t+=0x6D2B79F5; let r=Math.imul(t^(t>>>15),1|t); r^=r+Math.imul(r^(r>>>7),61|r); return ((r^(r>>>14))>>>0)/4294967296;};}
+
+let BOX = 50;
+
+function inShape(p, shape, box){
+  const c=box/2;
+  if(p[2]<0 || p[2]>box) return false;
+  if(shape==='cylinder'){ const dx=p[0]-c, dy=p[1]-c; return dx*dx+dy*dy <= c*c; }
+  if(shape==='sphere'){ const dx=p[0]-c, dy=p[1]-c, dz=p[2]-c; return dx*dx+dy*dy+dz*dz <= c*c; }
+  return p[0]>=0 && p[0]<=box && p[1]>=0 && p[1]<=box;
+}
+
+function makeTargets(prm, seed){
+  const rng=mulberry32((seed*2654435761)>>>0);
+  const box=BOX, c=box/2, t=[];
+  const z0=Math.min(prm.zmin,prm.zmax)/100*box, z1=Math.max(prm.zmin,prm.zmax)/100*box;
+  let guard=0;
+  while(t.length<prm.N && guard<prm.N*60){
+    guard++;
+    let p;
+    if(prm.pattern==='deck'){ p=[0.1*box+rng()*0.8*box, 0.1*box+rng()*0.8*box, box]; }
+    else if(prm.pattern==='kuppel'){ const th=2*Math.PI*rng(), ph=Math.acos(1-rng()), R=0.42*box;
+      p=[c+R*Math.sin(ph)*Math.cos(th), c+R*Math.sin(ph)*Math.sin(th), 0.5*box+R*Math.cos(ph)]; }
+    else if(prm.pattern==='ring'){ const a=2*Math.PI*(t.length/prm.N), R=0.35*box; p=[c+R*Math.cos(a), c+R*Math.sin(a), 0.88*box]; }
+    else { p=[0.1*box+rng()*0.8*box, 0.1*box+rng()*0.8*box, z0+rng()*Math.max(z1-z0,0.001)]; }
+    if(!inShape(p, prm.shape, box)) continue;
+    let w=1;
+    if(prm.weight==='random') w=0.3+0.7*rng();
+    else if(prm.weight==='hoehe') w=0.3+0.7*(p[2]/box);
+    t.push({p, w});
+  }
+  return t;
+}
+
+// ---------- Hindernisse ----------
+function obsInside(p, ob, extra){
+  if(ob.shape==='box'){
+    return Math.abs(p[0]-ob.x)<ob.size+extra && Math.abs(p[1]-ob.y)<ob.size+extra && Math.abs(p[2]-ob.z)<ob.size+extra;
+  }
+  const dx=p[0]-ob.x, dy=p[1]-ob.y, dz=p[2]-ob.z; const r=ob.size+extra;
+  return dx*dx+dy*dy+dz*dz < r*r;
+}
+function obsPushOut(pos, ob, gap, nodeR){
+  if(ob.shape==='box'){
+    const ex=ob.size+gap+nodeR;
+    const dx=pos[0]-ob.x, dy=pos[1]-ob.y, dz=pos[2]-ob.z;
+    if(Math.abs(dx)>=ex||Math.abs(dy)>=ex||Math.abs(dz)>=ex) return pos;
+    const px=ex-Math.abs(dx), py=ex-Math.abs(dy), pz=ex-Math.abs(dz);
+    if(px<=py && px<=pz) return [ob.x+Math.sign(dx||1)*ex, pos[1], pos[2]];
+    if(py<=pz)           return [pos[0], ob.y+Math.sign(dy||1)*ex, pos[2]];
+    return [pos[0], pos[1], ob.z+Math.sign(dz||1)*ex];
+  }
+  const dx=pos[0]-ob.x, dy=pos[1]-ob.y, dz=pos[2]-ob.z; const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+  const minD=ob.size+gap+nodeR;
+  if(d>=minD) return pos;
+  if(d<1e-6) return [ob.x, ob.y, ob.z+minD];
+  const s=minD/d; return [ob.x+dx*s, ob.y+dy*s, ob.z+dz*s];
+}
+
+// ---------- Space-Colonization ----------
+// Räumlicher Hash für die Nachbarsuche: aus O(Knoten×Ziele) wird ~O(Ziele).
+function makeNodeHash(cell){
+  const map=new Map();
+  const kk=(x,y,z)=>x+'|'+y+'|'+z;
+  return {
+    add(idx,p){ const k=kk(Math.floor(p[0]/cell),Math.floor(p[1]/cell),Math.floor(p[2]/cell)); let a=map.get(k); if(!a){a=[];map.set(k,a);} a.push(idx); },
+    collect(p, out, rad){ out.length=0; const c=Math.max(1,Math.ceil(rad/cell));
+      const cx=Math.floor(p[0]/cell),cy=Math.floor(p[1]/cell),cz=Math.floor(p[2]/cell);
+      for(let dx=-c;dx<=c;dx++)for(let dy=-c;dy<=c;dy++)for(let dz=-c;dz<=c;dz++){ const a=map.get(kk(cx+dx,cy+dy,cz+dz)); if(a) for(let i=0;i<a.length;i++) out.push(a[i]); } }
+  };
+}
+function growStep(nodes, attr, o, avoid, minDistSq, hash){
+  const inflSq=o.infl<=0?Infinity:o.infl*o.infl, killSq=o.kill*o.kill;
+  const dir=new Map(); const near=[];
+  for(const a of attr){
+    let best=inflSq, bn=-1;
+    if(hash){ hash.collect(a.p, near, o.infl); for(let j=0;j<near.length;j++){ const i=near[j]; const d=distSq(nodes[i].pos,a.p); if(d<best){best=d;bn=i;} } }
+    else { for(let i=0;i<nodes.length;i++){ const d=distSq(nodes[i].pos,a.p); if(d<best){best=d;bn=i;} } }
+    if(bn<0) continue;
+    const v=norm(sub(a.p,nodes[bn].pos));
+    dir.set(bn, dir.has(bn)?add(dir.get(bn),v):v);
+  }
+  const tooClose=p=>{ if(!avoid||minDistSq<=0) return false; for(const q of avoid){ if(distSq(p,q)<minDistSq) return true; } return false; };
+  const obsList=o.obstacles||[], clr=o.clearance||0;
+  // Segment a->b gegen Mesh-Sperrzonen prüfen (verhindert Durchtunneln dünner Teile).
+  function segBlocked(a,b){
+    if(!o.blocked) return false;
+    for(let s=1;s<=4;s++){ const f=s/4; if(o.blocked([a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f])) return true; }
+    return false;
+  }
+  function stepFrom(fromPos, rawDir, sl){
+    sl = sl || o.step;
+    let d=norm(rawDir);
+    if(o.jitter>0 && o.rng){ d=norm(add(d, scale([o.rng()*2-1,o.rng()*2-1,o.rng()*2-1], o.jitter))); }
+    for(const ob of obsList){
+      const np=add(fromPos, scale(d,sl));
+      if(obsInside(np,ob,clr)){
+        const inward=norm(sub([ob.x,ob.y,ob.z], fromPos)); const comp=dot(d,inward);
+        if(comp>0) d=norm(sub(d, scale(inward,comp)));
+      }
+    }
+    let np=add(fromPos, scale(d,sl));
+    for(const ob of obsList){ if(obsInside(np,ob,clr)) return null; }
+    // Mesh-Sperrzone (Import): bei Kollision die Richtung umlenken -> Ast wächst herum.
+    if(o.blocked && (o.blocked(np) || segBlocked(fromPos,np))){
+      const [u,v]=frameOf(d); let found=null;
+      const angs=[18,-18,36,-36,55,-55,75,-75,95,-95];
+      for(const deg of angs){
+        const a=deg*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a);
+        for(const ax of [u,v,[ -u[0],-u[1],-u[2] ],[ -v[0],-v[1],-v[2] ]]){
+          const dd=norm([d[0]*ca+ax[0]*sa, d[1]*ca+ax[1]*sa, d[2]*ca+ax[2]*sa]);
+          const cand=add(fromPos, scale(dd,sl));
+          let okObs=true; for(const ob of obsList){ if(obsInside(cand,ob,clr)){okObs=false;break;} }
+          if(okObs && !o.blocked(cand) && !segBlocked(fromPos,cand)){ found=cand; break; }
+        }
+        if(found) break;
+      }
+      return found;
+    }
+    return np;
+  }
+  const fresh=[];
+  if(dir.size===0){
+    // Kein Ziel im Einflussradius -> Stamm wächst in großen Schritten zur Wolke (überbrückt die Lücke schnell)
+    let best=Infinity,bn=-1,bd=[0,0,0];
+    for(const a of attr) for(let i=0;i<nodes.length;i++){ const d=distSq(nodes[i].pos,a.p); if(d<best){best=d;bn=i;bd=sub(a.p,nodes[i].pos);} }
+    if(bn>=0){ const gap=Math.sqrt(best), sl=clamp(gap-o.infl*0.7, o.step, o.step*6);
+      const np=stepFrom(nodes[bn].pos,bd,sl); if(np && !tooClose(np)) fresh.push({pos:np,parent:bn}); }
+  } else {
+    for(const [bn,v] of dir){ if(len(v)<1e-9) continue; const np=stepFrom(nodes[bn].pos,v); if(np && !tooClose(np)) fresh.push({pos:np,parent:bn}); }
+  }
+  for(const f of fresh) nodes.push(f);
+  if(hash){ for(let k=nodes.length-fresh.length;k<nodes.length;k++) hash.add(k, nodes[k].pos); }
+  const before=attr.length, near2=[];
+  for(let i=attr.length-1;i>=0;i--){ const a=attr[i]; let hit=false;
+    if(hash){ hash.collect(a.p, near2, o.kill); for(let j=0;j<near2.length;j++){ if(distSq(nodes[near2[j]].pos,a.p)<=killSq){hit=true;break;} } }
+    else { for(const n of nodes){ if(distSq(n.pos,a.p)<=killSq){hit=true;break;} } }
+    if(hit) attr.splice(i,1);
+  }
+  return {added:fresh.length, killed:before-attr.length};
+}
+
+function spaceColonization(targets, o, start){
+  const nodes=[{pos:start.slice(), parent:-1}];
+  const attr=targets.map(a=>({p:a.p.slice(), w:a.w}));
+  const cell = o.infl>0 ? o.infl : 0;
+  const hash = cell>0 ? makeNodeHash(cell) : null;
+  if(hash) hash.add(0, nodes[0].pos);
+  let iter=0;
+  for(; iter<o.maxIter && attr.length>0; iter++){
+    const r=growStep(nodes, attr, o, null, 0, hash);   // growStep pflegt den Hash selbst
+    if(r.added===0 && r.killed===0) break;
+    if(nodes.length>30000) break;
+  }
+  return {nodes, reached:targets.length-attr.length, total:targets.length, iter};
+}
+
+function growDouble(tA, sA, tB, sB, o, minDist){
+  const nodesA=[{pos:sA.slice(),parent:-1}], nodesB=[{pos:sB.slice(),parent:-1}];
+  const attrA=tA.map(a=>({p:a.p.slice(),w:a.w})), attrB=tB.map(a=>({p:a.p.slice(),w:a.w}));
+  const md2=minDist*minDist;
+  const cell = o.infl>0 ? o.infl : 0;
+  const hashA = cell>0 ? makeNodeHash(cell) : null, hashB = cell>0 ? makeNodeHash(cell) : null;
+  if(hashA){ hashA.add(0, nodesA[0].pos); hashB.add(0, nodesB[0].pos); }
+  let iter=0;
+  for(; iter<o.maxIter && (attrA.length>0||attrB.length>0); iter++){
+    const snapA=nodesA.map(n=>n.pos), snapB=nodesB.map(n=>n.pos);
+    const ra=attrA.length?growStep(nodesA,attrA,o,snapB,md2,hashA):{added:0,killed:0};
+    const rb=attrB.length?growStep(nodesB,attrB,o,snapA,md2,hashB):{added:0,killed:0};
+    if(ra.added+rb.added===0 && ra.killed+rb.killed===0) break;
+    if(nodesA.length+nodesB.length>40000) break;
+  }
+  return {nodesA,nodesB, reachedA:tA.length-attrA.length, totalA:tA.length, reachedB:tB.length-attrB.length, totalB:tB.length};
+}
+// ---- Steppbare Varianten (für zeitgeschnittenes, nicht-blockierendes Wachstum) ----
+function makeGrowSim(targets, o, start){
+  const nodes=[{pos:start.slice(),parent:-1}];
+  const attr=targets.map(a=>({p:a.p.slice(),w:a.w}));
+  const cell=o.infl>0?o.infl:0, hash=cell>0?makeNodeHash(cell):null;
+  if(hash) hash.add(0,nodes[0].pos);
+  let iter=0, stalled=false, noprog=0;
+  return { nodes, attr, total:targets.length,
+    done(){ return stalled || attr.length===0 || iter>=o.maxIter || nodes.length>12000; },
+    reached(){ return targets.length-attr.length; },
+    step(k){ for(let s=0;s<k && !this.done(); s++){ const r=growStep(nodes,attr,o,null,0,hash); iter++; if(r.added===0&&r.killed===0){ if(++noprog>=10){stalled=true;break;} } else noprog=0; } } };
+}
+function makeGrowDoubleSim(tA,sA,tB,sB,o,minDist){
+  const nodesA=[{pos:sA.slice(),parent:-1}], nodesB=[{pos:sB.slice(),parent:-1}];
+  const attrA=tA.map(a=>({p:a.p.slice(),w:a.w})), attrB=tB.map(a=>({p:a.p.slice(),w:a.w}));
+  const md2=minDist*minDist, cell=o.infl>0?o.infl:0;
+  const hashA=cell>0?makeNodeHash(cell):null, hashB=cell>0?makeNodeHash(cell):null;
+  if(hashA){ hashA.add(0,nodesA[0].pos); hashB.add(0,nodesB[0].pos); }
+  let iter=0, stalled=false, noprog=0;
+  return { nodesA, nodesB, totalA:tA.length, totalB:tB.length,
+    done(){ return stalled || (attrA.length===0&&attrB.length===0) || iter>=o.maxIter || nodesA.length+nodesB.length>16000; },
+    reachedA(){ return tA.length-attrA.length; }, reachedB(){ return tB.length-attrB.length; },
+    step(k){ for(let s=0;s<k && !this.done(); s++){
+      const snapA=nodesA.map(n=>n.pos), snapB=nodesB.map(n=>n.pos);
+      const ra=attrA.length?growStep(nodesA,attrA,o,snapB,md2,hashA):{added:0,killed:0};
+      const rb=attrB.length?growStep(nodesB,attrB,o,snapA,md2,hashB):{added:0,killed:0};
+      iter++; if(ra.added+rb.added===0&&ra.killed+rb.killed===0){ if(++noprog>=10){stalled=true;break;} } else noprog=0; } } };
+}
+
+// Echter mittlerer Nächster-Nachbar-Abstand der Zielwolke (gesampelt) — bildet die
+// lokale Dichte ab, auch bei Kurven/Clustern (Kraftfluss), wo das BBox-Volumen täuscht.
+function meanNNDist(targets){
+  const n=targets.length; if(n<2) return 1;
+  const qs=Math.max(1,Math.floor(n/250)), cs=Math.max(1,Math.floor(n/400)); let sum=0,cnt=0;
+  for(let i=0;i<n;i+=qs){ const a=targets[i].p; let best=Infinity;
+    for(let j=0;j<n;j+=cs){ if(j===i)continue; const d=distSq(a,targets[j].p); if(d<best)best=d; }
+    if(best<Infinity){ sum+=Math.sqrt(best); cnt++; } }
+  return cnt?Math.max(sum/cnt,0.2):1;
+}
+// Dichte-adaptiv: Schritt/Kill/Einfluss aus dem lokalen Zielabstand d̄.
+// Buschigkeit b∈[0,1]: 0 = großer Einfluss → Stamm mit wenigen Ästen; 1 = kleiner Einfluss → vielverzweigt/fein.
+function autoTune(o, targets){
+  if(!targets || targets.length<3) return;
+  const dbar=meanNNDist(targets);
+  const b=el_('bushiness')?clamp(+el_('bushiness').value,0,1):0.5;
+  o.step=Math.max(dbar*(0.9-0.35*b), 0.4);
+  o.kill=Math.max(o.step*(2.2-0.9*b), o.step+0.05);      // immer > Schrittweite
+  o.infl=Math.max(dbar*(16-13*b), o.kill*1.3);           // b groß => kleiner Einfluss => mehr Verzweigung
+}
+// ---------- Fluss-Optimierung (Physarum) -> Skelett (Spannbaum) ----------
+// Baut ein 3D-Gitter (Hindernisse ausgespart), schleift es nach Durchfluss aus
+// (Quelle=Start, Senken=Ziele) und liefert daraus einen Spannbaum mit Eltern-
+// Bezug -> geht durch dieselbe Pipeline wie das Wachstum. Auflösung/Iterationen
+// fürs Live-Tool begrenzt (Performance); der C#-Kern nutzt die vollen Werte.
+// Steppbarer Physarum-Fluss-Optimierer. Baut Gitter + Setup einmal auf und
+// lässt sich Iteration für Iteration weiterrechnen -> Grundlage für die
+// Live-Ausschleif-Animation. buildFlowTree() unten rechnet ihn in einem Rutsch.
+function makeFlowSim(start, targets, p){
+  const res=Math.min(p.opt_res, 12), iters=Math.min(p.opt_iter, 80);
+  const gamma=p.opt_gam, prune=p.opt_prune;
+  const rng=mulberry32((p.seed*131+7)>>>0);
+  const sp=BOX/(res-1), jit=sp*0.3;
+  const obs=p.obstacles||[];
+  const inObs=q=>{ for(const o of obs){ if(o.shape==='box'){ if(Math.abs(q[0]-o.x)<o.size&&Math.abs(q[1]-o.y)<o.size&&Math.abs(q[2]-o.z)<o.size) return true; } else { const dx=q[0]-o.x,dy=q[1]-o.y,dz=q[2]-o.z; if(dx*dx+dy*dy+dz*dz<o.size*o.size) return true; } } return false; };
+  const I=(x,y,z)=>(z*res+y)*res+x, N=res*res*res;
+  const gp=new Array(N), ok=new Array(N);
+  for(let z=0;z<res;z++)for(let y=0;y<res;y++)for(let x=0;x<res;x++){
+    const q=[x*sp+(rng()*2-1)*jit, y*sp+(rng()*2-1)*jit, z*sp+(rng()*2-1)*jit];
+    const i=I(x,y,z); gp[i]=q; ok[i]=!inObs(q);
+  }
+  const ea=[],eb=[],eL=[];
+  const add=(i,j)=>{ if(!ok[i]||!ok[j])return; ea.push(i);eb.push(j); const dx=gp[i][0]-gp[j][0],dy=gp[i][1]-gp[j][1],dz=gp[i][2]-gp[j][2]; eL.push(Math.max(Math.sqrt(dx*dx+dy*dy+dz*dz),1e-3)); };
+  for(let z=0;z<res;z++)for(let y=0;y<res;y++)for(let x=0;x<res;x++){ const i=I(x,y,z); if(x+1<res)add(i,I(x+1,y,z)); if(y+1<res)add(i,I(x,y+1,z)); if(z+1<res)add(i,I(x,y,z+1)); }
+  const M=ea.length, D=new Array(M).fill(1), live=new Array(M).fill(true);
+  const nearestOk=q=>{ let bi=-1,bd=1e18; for(let i=0;i<N;i++){ if(!ok[i])continue; const dx=gp[i][0]-q[0],dy=gp[i][1]-q[1],dz=gp[i][2]-q[2],d=dx*dx+dy*dy+dz*dz; if(d<bd){bd=d;bi=i;} } return bi; };
+  const source=nearestOk(start);
+  const sinks=[]; for(const t of targets){ const i=nearestOk(t.p); if(i>=0&&i!==source&&sinks.indexOf(i)<0) sinks.push(i); }
+  const valid = !(source<0||sinks.length===0);
+  let ground=-1, inj=null, q1=0, adj=null, P=null, pf=0, warm=0;
+  const buildA=()=>{ adj=Array.from({length:N},()=>[]); for(let e=0;e<M;e++){ if(!live[e])continue; adj[ea[e]].push([e,eb[e]]); adj[eb[e]].push([e,ea[e]]); } };
+  const flux=e=>(D[e]/eL[e])*(P[ea[e]]-P[eb[e]]);
+  const solve=it=>{ for(let k=0;k<it;k++) for(let i=0;i<N;i++){ if(!ok[i])continue; if(i===ground){P[i]=0;continue;} let sc=0,scp=0; for(const a of adj[i]){ const c=D[a[0]]/eL[a[0]]; sc+=c; scp+=c*P[a[1]]; } if(sc>1e-12) P[i]=(inj[i]+scp)/sc; } };
+  if(valid){
+    ground=sinks[0]; inj=new Array(N).fill(0); inj[source]=1; q1=1/sinks.length;
+    for(let s=1;s<sinks.length;s++) inj[sinks[s]]=-q1;
+    buildA(); P=new Array(N).fill(0); pf=prune*q1; warm=Math.min(8,(iters/4)|0);
+  }
+  let t=0;
+  return {
+    valid, gp, ea, eb, eL, D, live, source, sinks, iters, start, targets,
+    done(){ return !valid || t>=iters; },
+    progress(){ return valid? Math.min(t/iters,1) : 1; },
+    fluxOf(e){ return valid? flux(e) : 0; },
+    step(k){
+      if(!valid) return;
+      for(let s=0;s<k && t<iters; s++,t++){
+        solve(110);
+        const qf=new Array(M); for(let e=0;e<M;e++) qf[e]=live[e]?Math.abs(flux(e)):0;
+        for(let e=0;e<M;e++){ if(!live[e])continue; D[e]+=0.2*(Math.pow(qf[e],gamma)-D[e]); if(D[e]<0)D[e]=0; }
+        if(t>=warm){ let ch=false; for(let e=0;e<M;e++){ if(live[e]&&ea[e]!==ground&&eb[e]!==ground&&qf[e]<pf){live[e]=false;ch=true;} } if(ch) buildA(); }
+      }
+    },
+    extractTree(){
+      if(!valid) return {nodes:[{pos:start.slice(),parent:-1}], reached:0, total:targets.length};
+      buildA();
+      const par=new Array(N).fill(-2); par[source]=-1; const order=[source], dq=[source];
+      while(dq.length){ const u=dq.shift(); for(const a of adj[u]){ if(par[a[1]]===-2){ par[a[1]]=u; order.push(a[1]); dq.push(a[1]); } } }
+      const ni=new Array(N).fill(-1); for(let k=0;k<order.length;k++) ni[order[k]]=k;
+      const nodes=order.map(gi=>({ pos:gp[gi].slice(), parent: par[gi]<0?-1:ni[par[gi]] }));
+      let reached=0; for(const s of sinks) if(par[s]!==-2) reached++;
+      return {nodes, reached, total:sinks.length};
+    }
+  };
+}
+function buildFlowTree(start, targets, p){
+  const sim=makeFlowSim(start, targets, p);
+  sim.step(sim.iters);
+  return sim.extractTree();
+}
+
+// ---------- Template-Methode (regelbasiert / L-System-artig) ----------
+// Voll steuerbarer rekursiver Verzweigungsbaum:
+//  - Verzweigungsregel: split (dichotom), axial (Stamm + Seitenäste, monopodial),
+//    fork (Gabelung, sympodial)
+//  - Symmetrie: radial (n-zählig), bilateral (eine Ebene), phyllotaxis (Goldwinkel)
+//  - Astwinkel + Winkel-Variation, Längenverhältnis + Längen-Variation
+//  - Verdrehung pro Ebene (Roll), Tropismus (Krümmung nach oben/unten)
+//  - Natürlichkeit: skaliert Zufall auf Winkel/Länge/Azimut/Position (perfekt -> organisch)
+// Murray-Durchmesser/Glättung/Fillet kommen aus der gemeinsamen Pipeline.
+function buildTemplateTree(start, p, dir0){
+  dir0=dir0||[0,0,1];
+  const lev=Math.max(1,p.t_lev|0), ch=Math.max(1,p.t_child|0);
+  const ang=p.t_ang*Math.PI/180, angVar=(p.t_angvar||0)*Math.PI/180;
+  const ratio=p.t_ratio, lenVar=(p.t_lenvar||0), len0=p.t_len, twist=p.t_twist*Math.PI/180;
+  const nat=p.t_nat, sym=p.t_sym||'radial', rule=p.t_rule||'split', trop=p.t_trop||0;
+  const rng=mulberry32((p.seed*2246822519)>>>0);
+  const jr=s=>(rng()*2-1)*s;            // Zufall in [-s, s]
+  const nodes=[{pos:start.slice(), parent:-1}];
+  const CAP=14000;
+  const tropV=[0,0, trop>=0?1:-1];      // Tropismus-Zielrichtung (z hoch / runter)
+
+  // Azimut (Drehwinkel um die Astachse) je nach Symmetrie-Modus
+  function azimuth(k, count, level){
+    if(sym==='phyllotaxis') return k*2.39996323 + level*twist;          // Goldwinkel 137.5°
+    if(sym==='bilateral')   return (k%2===0?0:Math.PI) + Math.PI/2 + level*twist; // in einer Ebene
+    return (k/count)*2*Math.PI + level*twist;                            // radial
+  }
+  // Kindrichtung im Kegel um dir, danach Richtung Tropismus gebogen
+  function childDir(dir, u, v, phi, a){
+    const ca=Math.cos(a), sa=Math.sin(a);
+    let cd=[ dir[0]*ca+(Math.cos(phi)*u[0]+Math.sin(phi)*v[0])*sa,
+             dir[1]*ca+(Math.cos(phi)*u[1]+Math.sin(phi)*v[1])*sa,
+             dir[2]*ca+(Math.cos(phi)*u[2]+Math.sin(phi)*v[2])*sa ];
+    if(trop!==0){ const t=Math.abs(trop); cd=[cd[0]*(1-t)+tropV[0]*t, cd[1]*(1-t)+tropV[1]*t, cd[2]*(1-t)+tropV[2]*t]; }
+    return norm(cd);
+  }
+  function grow(parentIdx, dir, segLen, level){
+    if(level>=lev || nodes.length>=CAP) return;
+    const [u,v]=frameOf(dir);
+    // Regel -> Liste der Äste {a:Sollwinkel, phi:Azimut}
+    const branches=[];
+    if(rule==='axial'){                                   // Stamm gerade weiter + Seitenäste
+      branches.push({a:0, phi:0});
+      for(let k=0;k<ch;k++) branches.push({a:ang, phi:azimuth(k,ch,level)});
+    } else if(rule==='fork'){                             // immer 2er-Gabelung
+      branches.push({a:ang, phi:azimuth(0,2,level)});
+      branches.push({a:ang, phi:azimuth(1,2,level)});
+    } else {                                              // split: in ch Äste aufspalten
+      for(let k=0;k<ch;k++) branches.push({a:ang, phi:azimuth(k,ch,level)});
+    }
+    for(const b of branches){
+      if(nodes.length>=CAP) return;
+      const a=Math.max(0, b.a + jr(angVar) + (b.a>0 ? jr(nat)*b.a*0.6 : jr(nat*0.3)));
+      const cd=childDir(dir, u, v, b.phi + jr(nat*Math.PI), a);
+      const L=Math.max(0.1, segLen*(1 + jr(lenVar) + jr(nat*0.4)));
+      const pp=nodes[parentIdx].pos;
+      const np=[ pp[0]+cd[0]*L+jr(L*0.25*nat), pp[1]+cd[1]*L+jr(L*0.25*nat), pp[2]+cd[2]*L+jr(L*0.25*nat) ];
+      nodes.push({pos:np, parent:parentIdx});
+      grow(nodes.length-1, cd, L*ratio, level+1);
+    }
+  }
+  grow(0, norm(dir0), len0, 0);
+  const childCount=new Array(nodes.length).fill(0);
+  for(const nd of nodes) if(nd.parent>=0) childCount[nd.parent]++;
+  let leaves=0; for(let i=0;i<nodes.length;i++) if(childCount[i]===0) leaves++;
+  return {nodes, reached:leaves, total:leaves};
+}
+
+// ---------- Ordnung-Regler (perfekt <-> gewachsen, universell) ----------
+// Regularisiert einen beliebigen Baum top-down: an jeder Verzweigung werden die
+// Kinder auf gleiche Winkel im Kegel verteilt (symmetrischer Fächer) und auf
+// gleiche Länge gebracht. alpha=0 lässt alles wie gewachsen, alpha=1 = aufgeräumt.
+function lerpNode(nd, ideal, a){
+  nd.pos=[ nd.pos[0]+(ideal[0]-nd.pos[0])*a, nd.pos[1]+(ideal[1]-nd.pos[1])*a, nd.pos[2]+(ideal[2]-nd.pos[2])*a ];
+}
+function applyOrder(nodes, alpha){
+  if(alpha<=0) return;
+  const n=nodes.length, children=Array.from({length:n},()=>[]);
+  for(let i=0;i<n;i++) if(nodes[i].parent>=0) children[nodes[i].parent].push(i);
+  for(let i=0;i<n;i++){            // top-down (Eltern.id < Kind.id ist garantiert)
+    const kids=children[i]; if(kids.length===0) continue;
+    const pos=nodes[i].pos;
+    let dir = nodes[i].parent>=0 ? norm(sub(pos, nodes[nodes[i].parent].pos)) : [0,0,1];
+    if(!(isFinite(dir[0])&&isFinite(dir[1])&&isFinite(dir[2])) || (dir[0]===0&&dir[1]===0&&dir[2]===0)) dir=[0,0,1];
+    let avgLen=0, avgAng=0; const cds=[];
+    for(const c of kids){ const w=sub(nodes[c].pos,pos); const L=len(w)||1e-6; avgLen+=L;
+      const cd=scale(w,1/L); cds.push(cd); avgAng+=Math.acos(clamp(dot(cd,dir),-1,1)); }
+    avgLen/=kids.length; avgAng/=kids.length;
+    if(kids.length===1){
+      const ideal=[pos[0]+dir[0]*avgLen, pos[1]+dir[1]*avgLen, pos[2]+dir[2]*avgLen];
+      lerpNode(nodes[kids[0]], ideal, alpha); continue;
+    }
+    const [u,v]=frameOf(dir);
+    const phi0=Math.atan2(dot(cds[0],v), dot(cds[0],u));   // Orientierung stabil halten
+    const a=Math.max(avgAng,0.04), ca=Math.cos(a), sa=Math.sin(a);
+    for(let k=0;k<kids.length;k++){
+      const phi=phi0 + (k/kids.length)*2*Math.PI;
+      const cd=[ dir[0]*ca+(Math.cos(phi)*u[0]+Math.sin(phi)*v[0])*sa,
+                 dir[1]*ca+(Math.cos(phi)*u[1]+Math.sin(phi)*v[1])*sa,
+                 dir[2]*ca+(Math.cos(phi)*u[2]+Math.sin(phi)*v[2])*sa ];
+      const ideal=[pos[0]+cd[0]*avgLen, pos[1]+cd[1]*avgLen, pos[2]+cd[2]*avgLen];
+      lerpNode(nodes[kids[k]], ideal, alpha);
+    }
+  }
+}
+
+// ---------- Glättung ----------
+function smoothSkeleton(nodes, passes, strength){
+  if(passes<=0||strength<=0) return;
+  const n=nodes.length, children=Array.from({length:n},()=>[]);
+  for(let i=0;i<n;i++) if(nodes[i].parent>=0) children[nodes[i].parent].push(i);
+  for(let p=0;p<passes;p++){
+    const np=nodes.map(nd=>nd.pos.slice());
+    for(let i=1;i<n;i++){
+      if(children[i].length===0) continue;
+      const nb=[nodes[nodes[i].parent].pos]; for(const c of children[i]) nb.push(nodes[c].pos);
+      let avg=[0,0,0]; for(const q of nb) avg=add(avg,q); avg=scale(avg,1/nb.length);
+      np[i]=add(nodes[i].pos, scale(sub(avg,nodes[i].pos), strength));
+    }
+    for(let i=1;i<n;i++) nodes[i].pos=np[i];
+  }
+}
+
+// ---------- Durchmesser (Hess-Murray) ----------
+function nearestWeight(pos, targets){
+  let best=Infinity, w=1;
+  for(const a of targets){ const d=distSq(pos,a.p); if(d<best){best=d;w=a.w;} }
+  return w;
+}
+function assignMurray(nodes, targets, startDia, exponent, minDia){
+  const n=nodes.length, children=Array.from({length:n},()=>[]);
+  for(let i=0;i<n;i++) if(nodes[i].parent>=0) children[nodes[i].parent].push(i);
+  const flow=new Array(n).fill(0);
+  for(let i=0;i<n;i++) if(children[i].length===0) flow[i]=nearestWeight(nodes[i].pos, targets);
+  for(let i=n-1;i>=1;i--) flow[nodes[i].parent]+=flow[i];
+  const qroot=flow[0]||1;
+  for(let i=0;i<n;i++){
+    nodes[i].dia=Math.max(startDia*Math.pow(flow[i]/qroot, 1/exponent), minDia);
+    nodes[i].leaf=children[i].length===0;
+  }
+}
+
+// ---------- Durchmesser entlang der Äste glätten ----------
+// Mischt jeden Knotendurchmesser Richtung Mittel aus Eltern + Kindern.
+// Macht Übergänge gradueller (gegen "sehr dünn neben sehr dick"). Wurzel fix.
+function smoothDiameters(nodes, passes, strength){
+  if(passes<=0||strength<=0) return;
+  const n=nodes.length;
+  const children=Array.from({length:n},()=>[]);
+  for(let i=0;i<n;i++) if(nodes[i].parent>=0) children[nodes[i].parent].push(i);
+  for(let p=0;p<passes;p++){
+    const old=nodes.map(x=>x.dia);
+    for(let i=0;i<n;i++){
+      if(nodes[i].parent<0) continue;
+      let sum=old[nodes[i].parent], cnt=1;
+      for(const c of children[i]){ sum+=old[c]; cnt++; }
+      const avg=sum/cnt;
+      nodes[i].dia = old[i] + (avg-old[i])*strength;
+    }
+  }
+}
+
+// ---------- Min. Ast-Durchmesserverhältnis pro Verzweigung ----------
+// ratio = D_kind / D_eltern (Untergrenze). 1.0 = alle Kinder so dick wie der
+// Elternast (gleichmäßig); 0.01 = Kinder dürfen bis auf 1 % ausdünnen (Murray frei).
+// Dezimal & stufenlos. Top-down (Eltern.id < Kind.id).
+function clampBranchRatio(nodes, ratio){
+  const f = clamp(ratio, 0.01, 1);                  // D_kind >= D_eltern * f
+  for(let i=0;i<nodes.length;i++){
+    const par=nodes[i].parent; if(par<0) continue;
+    const pd=nodes[par].dia;
+    nodes[i].dia = Math.max(Math.min(nodes[i].dia, pd), pd*f);
+  }
+}
+// ---------- Durchfluss-Egalisierung ("2. Ausschleifen") ----------
+// Zieht die Auslass-Durchmesser Richtung gleichem Durchfluss: jeder Blatt-Pfad
+// soll denselben hydraulischen Widerstand Σ L/D⁴ bekommen (Ziel = Mittel).
+// Das End-Segment ist bei kurzen/dicken Ästen ein großer Widerstandsanteil ->
+// starke Verdünnung; bei langen/dünnen Ästen klein -> schwache Verdickung.
+// strength (0..1) mischt den Effekt ein.
+function equalizeFlow(nodes, strength){
+  if(strength<=0) return;
+  const n=nodes.length, children=Array.from({length:n},()=>[]);
+  for(let i=0;i<n;i++) if(nodes[i].parent>=0) children[nodes[i].parent].push(i);
+  const L=new Array(n).fill(0), R=new Array(n).fill(0);
+  for(let i=0;i<n;i++){ const par=nodes[i].parent; if(par<0) continue;
+    const a=nodes[par].pos,b=nodes[i].pos; L[i]=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]);
+    const D=Math.max(nodes[i].dia,1e-3); R[i]=R[par]+L[i]/(D*D*D*D); }
+  const leaves=[]; for(let i=0;i<n;i++) if(children[i].length===0 && nodes[i].parent>=0) leaves.push(i);
+  if(leaves.length<2) return;
+  let Rt=0; for(const i of leaves) if(R[i]>Rt) Rt=R[i];   // Ziel = höchster Widerstand -> nur drosseln
+  for(const i of leaves){
+    const D=Math.max(nodes[i].dia,1e-3), rTerm=L[i]/(D*D*D*D), rRest=R[i]-rTerm;
+    let rTermNew=Rt-rRest; if(rTermNew<1e-9) rTermNew=1e-9;
+    let Dnew=Math.pow(L[i]/rTermNew, 0.25);
+    if(!isFinite(Dnew)||Dnew<=0) Dnew=D;
+    Dnew=clamp(Dnew, 0.1, D);   // nur verjüngen (kein Trompeten-Flare)
+    nodes[i].dia = D + (Dnew-D)*strength;
+  }
+}
+// ---------- Durchfluss-Optimierung 2: dünne Kanäle aufweiten ----------
+// Verdickt unterversorgte (widerstandsreiche) Blatt-Äste, um ihren Durchfluss
+// zu erhöhen. Der ganze Terminal-Ast (bis zur letzten Verzweigung) wird verdickt,
+// jeder Knoten aber auf die Eltern-Dicke gekappt (Kind nie dicker als Eltern) ->
+// monotoner Taper, kein Flare, kein Absatz.
+function widenThinChannels(nodes, strength){
+  if(strength<=0) return;
+  const n=nodes.length, children=Array.from({length:n},()=>[]);
+  for(let i=0;i<n;i++) if(nodes[i].parent>=0) children[nodes[i].parent].push(i);
+  const L=new Array(n).fill(0), R=new Array(n).fill(0);
+  for(let i=0;i<n;i++){ const p=nodes[i].parent; if(p<0)continue;
+    const a=nodes[p].pos,b=nodes[i].pos; L[i]=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]);
+    const D=Math.max(nodes[i].dia,1e-3); R[i]=R[p]+L[i]/(D*D*D*D); }
+  const leaves=[]; for(let i=0;i<n;i++) if(children[i].length===0&&nodes[i].parent>=0) leaves.push(i);
+  if(leaves.length<2) return;
+  let Rmin=Infinity; for(const i of leaves) Rmin=Math.min(Rmin,R[i]); if(Rmin<=0) return;
+  for(const leaf of leaves){
+    if(R[leaf]<=Rmin*1.02) continue;
+    const factor=clamp(Math.pow(R[leaf]/Rmin,0.25),1,4);
+    const twig=[]; let cur=leaf;
+    while(cur>=0){ twig.push(cur); const par=nodes[cur].parent; if(par<0||children[par].length>1) break; cur=par; }
+    for(let t=twig.length-1;t>=0;t--){ const i=twig[t], par=nodes[i].parent;
+      let tgt=nodes[i].dia*factor;
+      if(par>=0) tgt=Math.min(tgt, nodes[par].dia);   // nie dicker als Eltern
+      nodes[i].dia = nodes[i].dia + (tgt-nodes[i].dia)*strength;
+    }
+  }
+}
+// ---------- Strömungs-Analyse (Murray-D³-Bilanz + Pfad-Widerstand als Fluss-Ausgleichs-Maß) ----------
+function analyzeFlow(trees){
+  let d3wsum=0, d3wtot=0, vol=0; const leafR=[];
+  for(const tr of trees){
+    const nodes=tr.nodes, n=nodes.length;
+    const children=Array.from({length:n},()=>[]);
+    for(let i=0;i<n;i++) if(nodes[i].parent>=0) children[nodes[i].parent].push(i);
+    const R=new Array(n).fill(0);   // kumulierter Widerstand ab Wurzel (∝ Σ L/D⁴, Hagen-Poiseuille)
+    for(let i=0;i<n;i++){
+      const par=nodes[i].parent; if(par<0) continue;
+      const a=nodes[par].pos, b=nodes[i].pos, L=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]);
+      const D=Math.max(nodes[i].dia,1e-3);
+      R[i]=R[par] + L/(D*D*D*D);
+      vol += Math.PI*(D*0.5)*(D*0.5)*L;
+    }
+    for(let i=0;i<n;i++){
+      const c=children[i];
+      if(c.length>=2){
+        const Dp=nodes[i].dia; let s=0; for(const k of c) s+=nodes[k].dia*nodes[k].dia*nodes[k].dia;
+        const dp3=Dp*Dp*Dp, err=dp3>1e-9?Math.abs(dp3-s)/dp3:0;
+        d3wsum+=err*dp3; d3wtot+=dp3;   // nach Leitungsgröße gewichtet -> dicke Kanäle zählen
+      }
+      if(c.length===0 && nodes[i].parent>=0) leafR.push(R[i]);
+    }
+  }
+  leafR.sort((a,b)=>a-b);
+  const rmin=leafR[0]||0, rmax=leafR[leafR.length-1]||0;
+  return { leaves:leafR.length, d3mean: d3wtot>0? d3wsum/d3wtot : 0,
+           rmin, rmax, rspread: rmin>1e-9? rmax/rmin : 0, vol };
+}
+// ---------- Hydraulik (Hagen-Poiseuille) ----------
+// Exakter Baum-Löser: Einlass=Wurzel (Druck pIn, Pa), Auslässe=Blätter (Umgebung 0).
+// Segment-Leitwert G = π D⁴ / (128 μ L). Liefert Knotendruck P[] (Pa) und
+// Segment-Durchfluss Q[] (m³/s, durch das Segment Eltern->Knoten). Längen/⌀ in mm.
+function solvePhysics(nodes, mu, pIn){
+  const n=nodes.length, ch=Array.from({length:n},()=>[]);
+  for(let i=0;i<n;i++) if(nodes[i].parent>=0) ch[nodes[i].parent].push(i);
+  const g=new Array(n).fill(0), Geq=new Array(n).fill(0), BIG=1e9;
+  for(let i=0;i<n;i++){ const p=nodes[i].parent; if(p<0) continue;
+    const a=nodes[p].pos,b=nodes[i].pos;
+    const L=Math.max(Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2])*1e-3, 1e-6);
+    const D=Math.max(nodes[i].dia*1e-3, 1e-5);
+    g[i]=Math.PI*Math.pow(D,4)/(128*mu*L); }
+  for(let i=n-1;i>=0;i--){ if(ch[i].length===0){ Geq[i]=BIG; continue; }
+    let s=0; for(const c of ch[i]) s+=1/(1/g[c]+1/Geq[c]); Geq[i]=s; }
+  const P=new Array(n).fill(0), Q=new Array(n).fill(0);
+  P[0]=pIn; const order=[0];
+  for(let k=0;k<order.length;k++){ const i=order[k];
+    for(const c of ch[i]){ const Gbc=1/(1/g[c]+1/Geq[c]); const Qc=Gbc*(P[i]); Q[c]=Qc; P[c]=P[i]-Qc/g[c]; order.push(c); } }
+  return {P, Q, ch};
+}
+
+// ---------- Knoten auf Hindernis-Oberflächen projizieren ----------
+function projectObstacles(nodes, obstacles, gap){
+  if(!obstacles.length) return;
+  for(let i=1;i<nodes.length;i++){
+    const nd=nodes[i];
+    for(const ob of obstacles) nd.pos=obsPushOut(nd.pos, ob, gap, nd.dia*0.5);
+  }
+}
+
+// Hält einen Punkt im Bauraum (projiziert ihn ggf. auf die Hülle zurück).
+function clampToShape(p, shape, box){
+  const c=box/2; let x=p[0], y=p[1], z=clamp(p[2],0,box);
+  if(shape==='cylinder'){ const dx=x-c, dy=y-c, r=Math.hypot(dx,dy); if(r>c){ const s=c/r; x=c+dx*s; y=c+dy*s; } }
+  else if(shape==='sphere'){ const dx=x-c, dy=y-c, dz=z-c, r=Math.sqrt(dx*dx+dy*dy+dz*dz); if(r>c){ const s=c/r; x=c+dx*s; y=c+dy*s; z=c+dz*s; } }
+  else { x=clamp(x,0,box); y=clamp(y,0,box); }
+  return [x,y,z];
+}
+
+// ---------- Kollisionsfreie Trennung (Relaxation, räumliches Raster) ----------
+// Bändig: Wurzeln UND Blätter bleiben fix, Verschiebung pro Schritt begrenzt,
+// jeder Knoten wird in den Bauraum zurückgeklemmt.
+function separateTrees(trees, gap, iters, bnd){
+  const all=[], radius=[], fixed=[], adj=new Set(); let G=0;
+  for(const tr of trees){
+    const base=G;
+    for(let i=0;i<tr.nodes.length;i++){ const nd=tr.nodes[i]; all.push(nd); radius.push(Math.max(nd.dia*0.5,0.01)); fixed.push(i===0 || nd.leaf); G++; }
+    for(let i=0;i<tr.nodes.length;i++){ const par=tr.nodes[i].parent; if(par>=0) adj.add((base+par)+"|"+(base+i)); }
+  }
+  const n=all.length; if(n<2) return;
+  let maxR=0; for(const r of radius) if(r>maxR) maxR=r;
+  const cell=Math.max(maxR*2+gap, 1e-3);
+  const key=(x,y,z)=>x+","+y+","+z;
+  const isAdj=(i,j)=> adj.has(i+"|"+j)||adj.has(j+"|"+i);
+  for(let it=0; it<iters; it++){
+    const grid=new Map();
+    for(let i=0;i<n;i++){ const p=all[i].pos; const k=key(Math.floor(p[0]/cell),Math.floor(p[1]/cell),Math.floor(p[2]/cell));
+      let a=grid.get(k); if(!a){ a=[]; grid.set(k,a); } a.push(i); }
+    const disp=new Array(n); for(let i=0;i<n;i++) disp[i]=[0,0,0];
+    for(let i=0;i<n;i++){
+      const p=all[i].pos, cx=Math.floor(p[0]/cell), cy=Math.floor(p[1]/cell), cz=Math.floor(p[2]/cell);
+      for(let ax=-1;ax<=1;ax++)for(let ay=-1;ay<=1;ay++)for(let az=-1;az<=1;az++){
+        const arr=grid.get(key(cx+ax,cy+ay,cz+az)); if(!arr) continue;
+        for(const j of arr){ if(j<=i || isAdj(i,j)) continue;
+          const q=all[j].pos, dx=q[0]-p[0], dy=q[1]-p[1], dz=q[2]-p[2];
+          const d=Math.sqrt(dx*dx+dy*dy+dz*dz), minD=radius[i]+radius[j]+gap;
+          if(d<minD){
+            let ux=1,uy=0,uz=0; if(d>1e-6){ ux=dx/d; uy=dy/d; uz=dz/d; }
+            const push=(minD-d)*0.5;
+            disp[i][0]-=ux*push; disp[i][1]-=uy*push; disp[i][2]-=uz*push;
+            disp[j][0]+=ux*push; disp[j][1]+=uy*push; disp[j][2]+=uz*push;
+          }
+        }
+      }
+    }
+    for(let i=0;i<n;i++){ if(fixed[i]) continue;
+      let dx=disp[i][0], dy=disp[i][1], dz=disp[i][2];
+      const m=Math.sqrt(dx*dx+dy*dy+dz*dz), mx=Math.max(radius[i],0.5);   // pro Schritt begrenzen
+      if(m>mx){ const s=mx/m; dx*=s; dy*=s; dz*=s; }
+      const p=all[i].pos;
+      all[i].pos=clampToShape([p[0]+dx, p[1]+dy, p[2]+dz], bnd.shape, bnd.box);
+    }
+  }
+}
+
+// ---------- Enden verbinden (Anastomose / Kapillaren) ----------
+// Paart nahe Blattenden von Baum A und B und führt jedes Paar auf seinen
+// Mittelpunkt zusammen -> die beiden Netze bilden dort eine Verbindung.
+function connectLeaves(nodesA, nodesB, reichweite){
+  const r2=reichweite*reichweite;
+  const leavesB=[]; for(let j=0;j<nodesB.length;j++) if(nodesB[j].leaf) leavesB.push(j);
+  const usedB=new Set();
+  let verbunden=0;
+  for(const la of nodesA){
+    if(!la.leaf) continue;
+    let best=-1,bestD=r2;
+    for(const j of leavesB){ if(usedB.has(j)) continue; const d=distSq(la.pos,nodesB[j].pos); if(d<bestD){bestD=d;best=j;} }
+    if(best>=0){
+      usedB.add(best);
+      const lb=nodesB[best];
+      const mid=[(la.pos[0]+lb.pos[0])/2,(la.pos[1]+lb.pos[1])/2,(la.pos[2]+lb.pos[2])/2];
+      la.pos=mid.slice(); lb.pos=mid.slice();
+      verbunden++;
+    }
+  }
+  return verbunden;
+}
+
+// Durchfluss-Garantie: JEDES Blatt von A wird auf den nächsten Knoten von B
+// gesetzt (und jedes Blatt von B auf den nächsten Knoten von A). Damit hat
+// jedes Ende eine Verbindung ins andere Netz -> keine Sackgassen/Blinddärme.
+// reichweite = Obergrenze: ist kein Knoten näher, bleibt das Ende eine Sackgasse
+// (wird gezählt). Groß genug = 100 % durchgängig.
+function connectAllLeaves(nodesA, nodesB, reichweite){
+  const r2=reichweite*reichweite;
+  function nearestWithin(positions, p){
+    let bi=-1,bd=r2; for(let i=0;i<positions.length;i++){ const d=distSq(positions[i],p); if(d<bd){bd=d;bi=i;} } return bi;
+  }
+  const posB=nodesB.map(n=>n.pos.slice());
+  let conn=0, dead=0;
+  for(const la of nodesA){ if(!la.leaf) continue; const j=nearestWithin(posB,la.pos); if(j>=0){ la.pos=posB[j].slice(); conn++; } else dead++; }
+  const posA=nodesA.map(n=>n.pos.slice());
+  for(const lb of nodesB){ if(!lb.leaf) continue; const j=nearestWithin(posA,lb.pos); if(j>=0){ lb.pos=posA[j].slice(); conn++; } else dead++; }
+  return {connections:conn, dead};
+}
+
+// ====================== three.js ======================
+const view=document.getElementById('view');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+view.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0e1116);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,4000); camera.up.set(0,0,1);
+scene.add(new THREE.AmbientLight(0xffffff,0.55));
+const keyLight=new THREE.DirectionalLight(0xffffff,0.9); keyLight.position.set(60,30,90); scene.add(keyLight);
+const fillLight=new THREE.DirectionalLight(0x88aacc,0.4); fillLight.position.set(-50,-40,20); scene.add(fillLight);
+
+const treeMat=new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.55, metalness:0.05});
+let treeMesh=new THREE.Mesh(new THREE.BufferGeometry(), treeMat); scene.add(treeMesh);
+const netzMat=new THREE.MeshStandardMaterial({color:0xc9b8ff, roughness:0.55, metalness:0.05});
+let netzGroup=new THREE.Group(); scene.add(netzGroup); let crossSegs=[];   // Querverbindungen (Blattadern / Enden)
+let crossVeins=[];   // Enden-Adern als Knotenketten {ti,start,pts,dia} für den wasserdichten Kern-Export
+const lineMat=new THREE.LineBasicMaterial({vertexColors:true});
+let treeLines=new THREE.LineSegments(new THREE.BufferGeometry(), lineMat); treeLines.visible=false; scene.add(treeLines);
+let helperGroup=new THREE.Group(); scene.add(helperGroup);
+// Echte Kern-Geometrie (WYSIWYG-Bake vom lokalen Server)
+const realMat=new THREE.MeshStandardMaterial({color:0xb8c2cc, roughness:0.45, metalness:0.15});
+let realMesh=new THREE.Mesh(new THREE.BufferGeometry(), realMat); realMesh.visible=false; scene.add(realMesh);
+// Zielpunkte sichtbar machen
+const ptsMat=new THREE.PointsMaterial({color:0xffd24a, size:7, sizeAttenuation:false, depthTest:false, transparent:true});
+let targetPoints=new THREE.Points(new THREE.BufferGeometry(), ptsMat); targetPoints.visible=false; targetPoints.renderOrder=999; scene.add(targetPoints);
+let curFlange=null;   // (Alt) globaler Flansch – wird jetzt über nd._flange gelöst
+let inletFlange={fl:false, fd:6, ft:1.5, fax:0, fay:0};   // Einlassflansch am Startpunkt (Wurzel)
+let flanges=[];        // platzierte Auslass-Flansche {x,y,z,d,t,ax,ay}, an nächsten Auslass gesnappt
+let selFl=-1;          // Index in flanges wenn selKind==='flange'
+let flangeMode=false;  // zeigt klickbare Auslass-Marker; Klick setzt/wählt Flansch
+let flangeMarkers=new THREE.Group(); scene.add(flangeMarkers);   // nur Einlass-Marker (Mesh)
+let outletCloud=null, outletPos=[];   // Auslass-Marker als Punktwolke (skaliert auf viele Blätter)
+const _D2R=Math.PI/180;
+// Orientierung einer Flansch-Scheibe: Basis = UP->Astachse(dir), dann im lokalen
+// Astframe um WinkelX/Y (Grad) gekippt. Rückgabe: Quaternion (Scheibenachse = q·UP).
+const _fq=new THREE.Quaternion(), _fqTilt=new THREE.Quaternion(), _fqEul=new THREE.Euler(), _fdir=new THREE.Vector3();
+function flangeQuat(dir, axDeg, ayDeg){
+  _fdir.set(dir[0],dir[1],dir[2]); if(_fdir.lengthSq()<1e-12) _fdir.set(0,0,1); _fdir.normalize();
+  _fq.setFromUnitVectors(UP, _fdir);
+  _fqEul.set((axDeg||0)*_D2R, 0, (ayDeg||0)*_D2R, 'XYZ');   // X- und Z-Kippung (beide ⟂ zur Astachse)
+  _fqTilt.setFromEuler(_fqEul);
+  return _fq.multiply(_fqTilt);   // qBasis * qKippung
+}
+// Weist jedem Knoten optional einen Flansch zu (nd._flange = {d,t,ax,ay,dir,root?}):
+//  - globaler Standard an ALLE Blätter (wenn p.flansch),
+//  - Pro-Punkt-Override: jeder aktivierte Zielpunkt setzt seinen Flansch am NÄCHSTEN Blatt,
+//  - Einlassflansch an der Wurzel des Hauptbaums.
+function assignFlanges(trees, p){
+  for(const tr of trees) for(const n of tr.nodes) n._flange=null;
+  const dirOf=(tr,n)=>{
+    if(n.parent<0){ for(const c of tr.nodes) if(c.parent===0) return [c.pos[0]-n.pos[0],c.pos[1]-n.pos[1],c.pos[2]-n.pos[2]]; return [0,0,1]; }
+    const par=tr.nodes[n.parent]; return [n.pos[0]-par.pos[0],n.pos[1]-par.pos[1],n.pos[2]-par.pos[2]];
+  };
+  if(p.flansch){
+    for(const tr of trees) for(const n of tr.nodes) if(n.leaf)
+      n._flange={d:p.flanschDia,t:p.flanschThk,ax:p.flanschWx,ay:p.flanschWy,dir:dirOf(tr,n)};
+  }
+  // platzierte Auslass-Flansche: jeder an den NÄCHSTEN Blattknoten
+  for(const f of flanges){
+    let best=1e18, bn=null, btr=null;
+    for(const tr of trees) for(const n of tr.nodes){ if(!n.leaf) continue;
+      const dx=n.pos[0]-f.x,dy=n.pos[1]-f.y,dz=n.pos[2]-f.z, dd=dx*dx+dy*dy+dz*dz;
+      if(dd<best){best=dd;bn=n;btr=tr;} }
+    if(bn) bn._flange={d:f.d,t:f.t,ax:f.ax,ay:f.ay,dir:dirOf(btr,bn)};
+  }
+  if(inletFlange.fl && trees.length){ const tr=trees[0], root=tr.nodes[0];
+    root._flange={d:inletFlange.fd,t:inletFlange.ft,ax:inletFlange.fax,ay:inletFlange.fay,dir:dirOf(tr,root),root:true}; }
+}
+// --- Klickbare Flansch-Marker an Auslässen/Einlass (aus dem aktuellen Baum) ---
+const flMatEmpty =()=>new THREE.MeshBasicMaterial({color:0x2aa7a7, transparent:true, opacity:0.5, depthTest:false});
+const flMatActive=()=>new THREE.MeshBasicMaterial({color:0xffb03a, depthTest:false});
+const flMatInlet =()=>new THREE.MeshBasicMaterial({color:0x4fd86a, depthTest:false});
+const flMatSelM  =()=>new THREE.MeshBasicMaterial({color:0xffffff, depthTest:false});
+function nearestFlangeIdx(pos){
+  const thr=(BOX*0.05)*(BOX*0.05); let best=thr, bi=-1;
+  for(let i=0;i<flanges.length;i++){ const f=flanges[i];
+    const dx=f.x-pos[0],dy=f.y-pos[1],dz=f.z-pos[2],dd=dx*dx+dy*dy+dz*dz; if(dd<best){best=dd;bi=i;} }
+  return bi;
+}
+function clearFlangeMarkers(){ scene.remove(flangeMarkers);
+  flangeMarkers.children.forEach(m=>{ if(m.material) m.material.dispose(); });
+  flangeMarkers=new THREE.Group(); scene.add(flangeMarkers); }
+function renderFlangeMarkers(trees){
+  clearFlangeMarkers(); trees=trees||[];
+  const r=Math.max(BOX*0.03,1.6);
+  // Einlass-Marker nur im Doppelbaum-Modus (im Einzelbaum ist die Start-Kugel der Einlass -> kein Geisterpunkt)
+  if(trees.length && trees[0].nodes.length && el_('dual') && el_('dual').checked){ const root=trees[0].nodes[0];
+    const mk=new THREE.Mesh(mtSphereGeo, (selKind==='start')?flMatSelM():flMatInlet());
+    mk.position.set(root.pos[0],root.pos[1],root.pos[2]); mk.scale.setScalar(inletFlange.fl?r*1.2:r*0.9);
+    mk.userData={kind:'inlet'}; mk.renderOrder=998; flangeMarkers.add(mk); }
+  buildOutletCloud(trees);
+  dirty=true;
+}
+// Auslass-Marker als eine Punktwolke: im Flansch-Modus ALLE Blätter (cyan), sonst nur
+// gesetzte Flansche (orange); gewählter = weiß. Ein Draw-Call -> beliebig viele Blätter.
+function buildOutletCloud(trees){
+  if(outletCloud){ scene.remove(outletCloud); outletCloud.geometry.dispose(); outletCloud.material.dispose(); outletCloud=null; }
+  outletPos=[]; const pos=[], col=[];
+  const O=[1.0,0.69,0.23], C=[0.16,0.72,0.72], S=[1,1,1];
+  for(const tr of trees) for(const n of tr.nodes){ if(!n.leaf) continue;
+    const fi=nearestFlangeIdx(n.pos), has=fi>=0;
+    if(!has && !flangeMode) continue;
+    outletPos.push([n.pos[0],n.pos[1],n.pos[2]]);
+    pos.push(n.pos[0],n.pos[1],n.pos[2]);
+    const c=(selKind==='flange'&&has&&selFl===fi)?S:(has?O:C); col.push(c[0],c[1],c[2]);
+  }
+  if(!pos.length) return;
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color',    new THREE.Float32BufferAttribute(col,3));
+  const m=new THREE.PointsMaterial({size:14, sizeAttenuation:false, vertexColors:true, depthTest:false, transparent:true});
+  outletCloud=new THREE.Points(g,m); outletCloud.renderOrder=998; scene.add(outletCloud);
+}
+function clickOutlet(pos){
+  let i=nearestFlangeIdx(pos);
+  if(i<0){ const p=params();
+    flanges.push({x:+pos[0].toFixed(2),y:+pos[1].toFixed(2),z:+pos[2].toFixed(2), d:p.flanschDia,t:p.flanschThk,ax:p.flanschWx,ay:p.flanschWy});
+    i=flanges.length-1; }
+  selKind='flange'; selFl=i; selObs=-1; selAttr=-1; selImp=-1; selMt=-1; tControls.detach();
+  refreshFlanges(); renderOutliner(); renderSelProps(); scheduleHistory();
+}
+function selectFlange(i){
+  if(i<0||i>=flanges.length){ deselectAll(); return; }
+  selKind='flange'; selFl=i; selObs=-1; selAttr=-1; selImp=-1; selMt=-1; tControls.detach();
+  renderFlangeMarkers(lastTrees); renderOutliner(); renderSelProps(); dirty=true;
+}
+// Leichter Neuaufbau nur der Flansche (KEIN Neuwachstum): Zuweisung + Rebake + Marker/Liste.
+function refreshFlanges(){
+  if(!lastTrees.length){ renderFlangeMarkers(lastTrees); renderFlangeList(); return; }
+  const p=params(); assignFlanges(lastTrees,p);
+  if(p.darstellung==='schnell'){ const f=bakeFast(lastTrees); treeMesh.geometry.dispose(); treeMesh.geometry=f.geo; treeLines.geometry.dispose(); treeLines.geometry=f.lg; treeLines.visible=true; }
+  else { const {geo}=bakeTreesToGeometry(lastTrees,p.quality); treeMesh.geometry.dispose(); treeMesh.geometry=geo; treeLines.visible=false; }
+  renderFlangeMarkers(lastTrees); renderFlangeList(); dirty=true;
+}
+let physColorMode=false;   // Baum nach Druck einfärben statt nach Durchmesser
+function mediumProps(name){
+  if(name==='oel') return {mu:0.06, rho:900, label:'Öl'};
+  if(name==='luft') return {mu:1.8e-5, rho:1.2, label:'Luft'};
+  return {mu:0.001, rho:1000, label:'Wasser'};
+}
+// Schwebende Zahlen-Labels an den Auslässen (Canvas-Sprites, immer zur Kamera gedreht).
+let labelGroup=null;
+function makeLabelSprite(text){
+  const pad=8, fs=34, c=document.createElement('canvas'), ctx=c.getContext('2d');
+  ctx.font=`bold ${fs}px sans-serif`;
+  const w=Math.ceil(ctx.measureText(text).width)+pad*2, h=fs+pad*2;
+  c.width=w; c.height=h; ctx.font=`bold ${fs}px sans-serif`;
+  const r=10; ctx.beginPath(); ctx.moveTo(r,0); ctx.arcTo(w,0,w,h,r); ctx.arcTo(w,h,0,h,r); ctx.arcTo(0,h,0,0,r); ctx.arcTo(0,0,w,0,r); ctx.closePath();
+  ctx.fillStyle='rgba(10,14,18,0.82)'; ctx.fill();
+  ctx.fillStyle='#ffd24a'; ctx.textBaseline='middle'; ctx.fillText(text,pad,h/2+1);
+  const tex=new THREE.CanvasTexture(c); tex.minFilter=THREE.LinearFilter;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:tex, depthTest:false, transparent:true}));
+  const s=BOX*0.045; sp.scale.set(s*w/h, s, 1); return sp;
+}
+function updatePhysLabels(pts, fmtQ){
+  if(!labelGroup){ labelGroup=new THREE.Group(); scene.add(labelGroup); }
+  for(const ch of labelGroup.children){ if(ch.material){ if(ch.material.map) ch.material.map.dispose(); ch.material.dispose(); } }
+  labelGroup.clear();
+  if(!pts || !pts.length || pts.length>60){ dirty=true; return; }   // >60 Auslässe: zu viel Clutter
+  for(const o of pts){
+    const sp=makeLabelSprite(fmtQ(o.q));
+    sp.position.set(o.pos[0], o.pos[1], o.pos[2]+BOX*0.03);
+    labelGroup.add(sp);
+  }
+  dirty=true;
+}
+function updateTargetPoints(){
+  if(!el_('zeigeZiele') || !el_('zeigeZiele').checked){ targetPoints.visible=false; dirty=true; return; }
+  const arr=[]; for(const t of lastTargets) arr.push(t.p[0],t.p[1],t.p[2]);
+  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr,3));
+  targetPoints.geometry.dispose(); targetPoints.geometry=g; targetPoints.visible=true; dirty=true;
+}
+let dirty=true;
+
+const cThin=new THREE.Color(0x3a6ea5), cMid=new THREE.Color(0x4fd1a5), cWarm=new THREE.Color(0xe8c45a), cHot=new THREE.Color(0xe0664f);
+function diaColor(t){ const c=new THREE.Color();
+  if(t<0.5) c.lerpColors(cThin,cMid,t/0.5); else if(t<0.8) c.lerpColors(cMid,cWarm,(t-0.5)/0.3); else c.lerpColors(cWarm,cHot,(t-0.8)/0.2);
+  return c; }
+
+// Durchfluss-Farbverlauf (blau wenig -> rot viel) für die Ausschleif-Animation
+function flowColor(t,out){
+  const s=[[58,110,165],[79,209,165],[232,196,90],[224,102,79]];
+  const x=Math.max(0,Math.min(1,t))*3, i=Math.floor(x), f=x-i, a=s[i], b=s[Math.min(i+1,3)];
+  out[0]=(a[0]+(b[0]-a[0])*f)/255; out[1]=(a[1]+(b[1]-a[1])*f)/255; out[2]=(a[2]+(b[2]-a[2])*f)/255;
+}
+const UP=new THREE.Vector3(0,1,0);
+const _q=new THREE.Quaternion(), _m=new THREE.Matrix4(), _p=new THREE.Vector3(), _a=new THREE.Vector3(), _b=new THREE.Vector3(), _d=new THREE.Vector3(), _s=new THREE.Vector3(1,1,1);
+function appendGeo(geo, arr, color){
+  const pos=geo.attributes.position, nor=geo.attributes.normal, idx=geo.index, cnt=idx?idx.count:pos.count;
+  for(let i=0;i<cnt;i++){ const vi=idx?idx.getX(i):i;
+    arr.positions.push(pos.getX(vi),pos.getY(vi),pos.getZ(vi));
+    arr.normals.push(nor.getX(vi),nor.getY(vi),nor.getZ(vi));
+    arr.colors.push(color.r,color.g,color.b); }
+  geo.dispose();
+}
+function bakeNodes(nodes, tint, arr, fullJoints){
+  let dMin=Infinity,dMax=0;
+  for(const nd of nodes){ if(nd.dia>dMax)dMax=nd.dia; if(nd.leaf&&nd.dia<dMin)dMin=nd.dia; }
+  const normDia=d=> dMax>0?Math.pow(d/dMax,0.6):0;
+  const col=t=> tint?tint.clone().multiplyScalar(0.45).lerp(tint,t):diaColor(t);
+  // Bei Physik-Modus nach Knotendruck (_pt) einfärben statt nach Durchmesser
+  const nodeCol = i => physColorMode ? diaColor(nodes[i]._pt||0) : col(normDia(nodes[i].dia));
+  const childCount=new Array(nodes.length).fill(0);
+  for(const nd of nodes) if(nd.parent>=0) childCount[nd.parent]++;
+  const seg=fullJoints?[10,8]:[8,6];
+  for(let i=0;i<nodes.length;i++){
+    const nd=nodes[i];
+    if(fullJoints || nd.parent<0 || nd.leaf || childCount[i]>=2){
+      const sg=new THREE.SphereGeometry(Math.max(nd.dia*0.5,0.05),seg[0],seg[1]);
+      sg.translate(nd.pos[0],nd.pos[1],nd.pos[2]);
+      appendGeo(sg, arr, nodeCol(i));
+    }
+    if(nd.parent>=0){
+      const p=nodes[nd.parent];
+      _a.set(p.pos[0],p.pos[1],p.pos[2]); _b.set(nd.pos[0],nd.pos[1],nd.pos[2]); _d.subVectors(_b,_a); const h=_d.length();
+      if(h<1e-4) continue;
+      const cg=new THREE.CylinderGeometry(Math.max(nd.dia*0.5,0.02), Math.max(p.dia*0.5,0.02), h, fullJoints?10:6, 1);
+      _q.setFromUnitVectors(UP,_d.clone().normalize()); _p.copy(_a).addScaledVector(_d,0.5); _m.compose(_p,_q,_s); cg.applyMatrix4(_m);
+      const segCol = physColorMode ? diaColor(0.5*((nd._pt||0)+(p._pt||0))) : col(normDia(0.5*(nd.dia+p.dia)));
+      appendGeo(cg, arr, segCol);
+    }
+    // Flansch-Scheibe (Auslass-Blätter, Standard oder Pro-Punkt; Einlass an der Wurzel)
+    if(nd._flange){
+      const fl=nd._flange, q=flangeQuat(fl.dir, fl.ax, fl.ay);
+      const cg=new THREE.CylinderGeometry(fl.d*0.5, fl.d*0.5, fl.t, fullJoints?24:14, 1);
+      _p.set(nd.pos[0],nd.pos[1],nd.pos[2]); _m.compose(_p,q,_s); cg.applyMatrix4(_m);
+      appendGeo(cg, arr, fl.root?new THREE.Color(0x4fd86a).multiplyScalar(0.9):col(1));
+    }
+  }
+  return {dMin:isFinite(dMin)?dMin:0, dMax};
+}
+// Schnell-Darstellung: Äste als Linien (1 Draw-Call) + grobe Kugeln nur an den
+// Gelenken (Verzweigungen + Wurzel). Ein Bruchteil der Geometrie -> flüssig.
+function bakeFast(trees){
+  const arr={positions:[],normals:[],colors:[]};
+  const lp=[], lc=[];
+  for(const tr of trees){
+    const nodes=tr.nodes; let dMax=0;
+    for(const nd of nodes) if(nd.dia>dMax) dMax=nd.dia;
+    const nrm=d=> dMax>0?Math.pow(d/dMax,0.6):0;
+    const col=t=> tr.tint?tr.tint.clone().multiplyScalar(0.5).lerp(tr.tint,t):diaColor(t);
+    const childCount=new Array(nodes.length).fill(0);
+    for(const nd of nodes) if(nd.parent>=0) childCount[nd.parent]++;
+    for(let i=0;i<nodes.length;i++){
+      const nd=nodes[i];
+      if(nd.parent>=0){ const pp=nodes[nd.parent].pos, c=col(nrm(nd.dia));
+        lp.push(pp[0],pp[1],pp[2], nd.pos[0],nd.pos[1],nd.pos[2]); lc.push(c.r,c.g,c.b, c.r,c.g,c.b); }
+      if(nd.parent<0 || childCount[i]>=2){   // Gelenk-Kugel an Wurzel + Verzweigungen
+        const sg=new THREE.SphereGeometry(Math.max(nd.dia*0.5,0.05),6,4);
+        sg.translate(nd.pos[0],nd.pos[1],nd.pos[2]); appendGeo(sg, arr, col(nrm(nd.dia)));
+      }
+    }
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(arr.positions,3));
+  geo.setAttribute('normal',   new THREE.Float32BufferAttribute(arr.normals,3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(arr.colors,3));
+  const lg=new THREE.BufferGeometry();
+  lg.setAttribute('position', new THREE.Float32BufferAttribute(lp,3));
+  lg.setAttribute('color',    new THREE.Float32BufferAttribute(lc,3));
+  return {geo, lg};
+}
+function bakeTreesToGeometry(trees, fullJoints){
+  const arr={positions:[],normals:[],colors:[]}; let dMin=Infinity,dMax=0;
+  for(const t of trees){ const info=bakeNodes(t.nodes,t.tint,arr,fullJoints); dMin=Math.min(dMin,info.dMin); dMax=Math.max(dMax,info.dMax); }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(arr.positions,3));
+  geo.setAttribute('normal',   new THREE.Float32BufferAttribute(arr.normals,3));
+  geo.setAttribute('color',    new THREE.Float32BufferAttribute(arr.colors,3));
+  return {geo, dMin:isFinite(dMin)?dMin:0, dMax};
+}
+// Live-Röhren aus dem laufenden Fluss-Optimierer: Radius wächst mit dem
+// Leitwert D (Start gleichmäßig dünn -> Arterien verdicken sich), Farbe = Fluss.
+function bakeSimTubes(sims, p){
+  const pos3=[],nor=[],col=[],c=[0,0,0];
+  for(const sim of sims){
+    if(!sim.valid) continue;
+    const M=sim.D.length;
+    let dmax=1e-6; for(let e=0;e<M;e++) if(sim.live[e]&&sim.D[e]>dmax)dmax=sim.D[e];
+    let qmax=1e-6; for(let e=0;e<M;e++) if(sim.live[e]){const Q=Math.abs(sim.fluxOf(e)); if(Q>qmax)qmax=Q;}
+    const maxR=Math.max(p.dia*0.5, BOX*0.018), minR=BOX*0.004;
+    for(let e=0;e<M;e++){
+      if(!sim.live[e])continue;
+      const r=Math.max(minR, maxR*Math.pow(Math.max(sim.D[e]/dmax,0),0.5));
+      const ga=sim.gp[sim.ea[e]], gb=sim.gp[sim.eb[e]];
+      _a.set(ga[0],ga[1],ga[2]); _b.set(gb[0],gb[1],gb[2]); _d.subVectors(_b,_a); const h=_d.length(); if(h<1e-4)continue;
+      const cg=new THREE.CylinderGeometry(r,r,h,5,1);
+      _q.setFromUnitVectors(UP,_d.clone().normalize()); _p.copy(_a).addScaledVector(_d,0.5); _m.compose(_p,_q,_s); cg.applyMatrix4(_m);
+      flowColor(Math.abs(sim.fluxOf(e))/qmax,c);
+      const ps=cg.attributes.position, nr=cg.attributes.normal, idx=cg.index, cnt=idx?idx.count:ps.count;
+      for(let i=0;i<cnt;i++){ const vi=idx?idx.getX(i):i; pos3.push(ps.getX(vi),ps.getY(vi),ps.getZ(vi)); nor.push(nr.getX(vi),nr.getY(vi),nr.getZ(vi)); col.push(c[0],c[1],c[2]); }
+      cg.dispose();
+    }
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos3,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  return g;
+}
+
+function buildHelpers(prm){
+  scene.remove(helperGroup);
+  helperGroup.traverse(o=>{ if(o.geometry)o.geometry.dispose(); if(o.material)o.material.dispose(); });
+  helperGroup=new THREE.Group(); scene.add(helperGroup);
+  const c=BOX/2;
+  let envGeo;
+  if(prm.shape==='cylinder'){ envGeo=new THREE.CylinderGeometry(c,c,BOX,32,1,true); }
+  else if(prm.shape==='sphere'){ envGeo=new THREE.SphereGeometry(c,24,16); }
+  else { envGeo=new THREE.BoxGeometry(BOX,BOX,BOX); }
+  const env=new THREE.LineSegments(new THREE.EdgesGeometry(envGeo, prm.shape==='box'?1:25),
+    new THREE.LineBasicMaterial({color:0x33414f}));
+  if(prm.shape==='cylinder'||prm.shape==='sphere') env.rotation.x=Math.PI/2;
+  env.position.set(c,c,c); helperGroup.add(env); envGeo.dispose();
+  const grid=new THREE.GridHelper(BOX,10,0x2a3340,0x1c242e); grid.rotation.x=Math.PI/2; grid.position.set(c,c,0); helperGroup.add(grid);
+  // Hindernisse werden interaktiv in obsGroup gezeichnet (Gumball), nicht hier.
+}
+
+// ---------- Orbit ----------
+const target=new THREE.Vector3(25,25,21);
+let az=Math.PI*0.25, el=Math.PI*0.18, rad=110;
+function updateCam(){ const ce=Math.cos(el), se=Math.sin(el);
+  camera.position.set(target.x+rad*ce*Math.cos(az), target.y+rad*ce*Math.sin(az), target.z+rad*se); camera.lookAt(target); }
+let drag=false,px=0,py=0,downX=0,downY=0,moved=false,orbitEnabled=true;
+renderer.domElement.addEventListener('mousedown',e=>{ if(e.button!==0)return; drag=true; px=e.clientX; py=e.clientY; downX=e.clientX; downY=e.clientY; moved=false; });
+addEventListener('mouseup',e=>{
+  const wasDrag=drag; drag=false;
+  // Klick (kaum Bewegung, nicht am Gizmo) -> Hindernis auswählen/abwählen
+  if(wasDrag && !moved && !(typeof tControls!=='undefined' && tControls.dragging)) trySelect(e);
+});
+addEventListener('mousemove',e=>{ if(!drag)return;
+  if(Math.abs(e.clientX-downX)+Math.abs(e.clientY-downY)>6) moved=true;   // Klick-Toleranz erhöht
+  if(!orbitEnabled)return;
+  az-=(e.clientX-px)*0.01; el+=(e.clientY-py)*0.01; el=clamp(el,-1.45,1.45); px=e.clientX; py=e.clientY; dirty=true; });
+renderer.domElement.addEventListener('wheel',e=>{ e.preventDefault(); rad*=(1+Math.sign(e.deltaY)*0.08); rad=clamp(rad,15,800); dirty=true; },{passive:false});
+
+// ---------- Szene-Objekte + Gumball (CAD Phase A/B/C) ----------
+let obsGroup=new THREE.Group(); scene.add(obsGroup);
+let attrGroup=new THREE.Group(); scene.add(attrGroup);
+let importGroup=new THREE.Group(); scene.add(importGroup);
+let flowVizGroup=new THREE.Group(); scene.add(flowVizGroup);   // importierte Kraftfluss-Linien (sichtbar)
+let mtGroup=new THREE.Group(); scene.add(mtGroup);
+let manualTargets=[];                 // manuell gesetzte Zielpunkte {x,y,z,w}
+let flowTargets=[];                   // aus Mattheck-Kraftfluss importierte Wachstums-Ziele {p,w}
+let flowRawLines=null;                // rohe Kraftfluss-Linien (für Dichte/Auslass-Regler)
+let placeMode=false;                  // Klick setzt Zielpunkt statt Auswahl
+let selKind=null;                     // 'obs' | 'attr' | 'imp' | 'mtgt' | 'start' | null
+let selObs=-1, selAttr=-1, selImp=-1, selMt=-1;
+const tControls=new THREE.TransformControls(camera, renderer.domElement);
+tControls.setSize(0.85);
+tControls.setSpace('world');   // Gumball immer an Welt-Achsen (auch bei gedrehten Objekten)
+tControls.addEventListener('change', ()=>{ dirty=true; });
+tControls.addEventListener('dragging-changed', e=>{ if(!e.value){ clearTimeout(_gizDeb); rebuild(); scheduleHistory(); } });   // beim Loslassen final neu wachsen
+tControls.addEventListener('dragging-changed', e=>{ orbitEnabled=!e.value; });
+tControls.addEventListener('objectChange', ()=>{ onGizmo(); });
+scene.add(tControls);
+
+// Start-Punkt als ziehbares Objekt (nur Einzelbaum)
+const startHandle=new THREE.Mesh(new THREE.SphereGeometry(1,20,14),
+  new THREE.MeshStandardMaterial({color:0x4fd86a, emissive:0x1f7a45, emissiveIntensity:1.2, roughness:0.4}));
+startHandle.visible=false; startHandle.userData.start=true; scene.add(startHandle);
+
+const obsMatNormal =()=>new THREE.MeshStandardMaterial({color:0x99a2b0, transparent:true, opacity:0.22, roughness:0.9});
+const attrMatNormal=()=>new THREE.MeshStandardMaterial({color:0x9b8cff, transparent:true, opacity:0.20, roughness:0.8});
+const mtMatNormal  =()=>new THREE.MeshStandardMaterial({color:0x38d6d6, emissive:0x0a3a3a, roughness:0.5});
+const matSel       =()=>new THREE.MeshStandardMaterial({color:0xe8c45a, transparent:true, opacity:0.40, roughness:0.6});
+const mtSphereGeo  = new THREE.SphereGeometry(1,10,8);   // geteilt für alle Zielpunkt-Marker
+function rebuildMtGroup(){
+  scene.remove(mtGroup);
+  mtGroup.children.forEach(m=>{ if(m.material) m.material.dispose(); });   // Geometrie ist geteilt -> nicht entsorgen
+  mtGroup=new THREE.Group(); scene.add(mtGroup);
+  const r=Math.max(BOX*0.028,1.4);   // größere, gut klickbare Marker
+  manualTargets.forEach((m,i)=>{
+    const me=new THREE.Mesh(mtSphereGeo, (selKind==='mtgt'&&i===selMt)?matSel():mtMatNormal());
+    me.position.set(m.x,m.y,m.z); me.scale.setScalar(r); me.userData={kind:'mtgt', idx:i};
+    me.material.depthTest=false; me.renderOrder=997;   // nie hinter den Röhren verschwinden
+    mtGroup.add(me);
+  });
+  if(selKind==='mtgt' && selMt>=0 && selMt<mtGroup.children.length) tControls.attach(mtGroup.children[selMt]);
+  dirty=true;
+}
+
+function rebuildObsGroup(){
+  scene.remove(obsGroup);
+  obsGroup.traverse(o=>{ if(o.geometry)o.geometry.dispose(); if(o.material)o.material.dispose(); });
+  obsGroup=new THREE.Group(); scene.add(obsGroup);
+  obstacles.forEach((ob,i)=>{
+    const g = ob.shape==='box' ? new THREE.BoxGeometry(2,2,2) : new THREE.SphereGeometry(1,20,14);
+    const m=new THREE.Mesh(g, (selKind==='obs'&&i===selObs)?matSel():obsMatNormal());
+    m.position.set(ob.x,ob.y,ob.z); m.scale.setScalar(Math.max(ob.size,0.01)); m.userData={kind:'obs', idx:i};
+    obsGroup.add(m);
+  });
+  if(selKind==='obs' && selObs>=0 && selObs<obsGroup.children.length) tControls.attach(obsGroup.children[selObs]);
+  dirty=true;
+}
+function rebuildAttrGroup(){
+  scene.remove(attrGroup);
+  attrGroup.traverse(o=>{ if(o.geometry)o.geometry.dispose(); if(o.material)o.material.dispose(); });
+  attrGroup=new THREE.Group(); scene.add(attrGroup);
+  attractors.forEach((a,i)=>{
+    const g = a.shape==='box' ? new THREE.BoxGeometry(2,2,2) : new THREE.SphereGeometry(1,20,14);
+    const m=new THREE.Mesh(g, (selKind==='attr'&&i===selAttr)?matSel():attrMatNormal());
+    m.position.set(a.x,a.y,a.z); m.scale.setScalar(Math.max(a.size,0.01)); m.userData={kind:'attr', idx:i};
+    attrGroup.add(m);
+  });
+  if(selKind==='attr' && selAttr>=0 && selAttr<attrGroup.children.length) tControls.attach(attrGroup.children[selAttr]);
+  dirty=true;
+}
+// Importierte STL-Objekte (Rolle bestimmt Farbe + Wirkung auf die Engine)
+const impColor=role=> (role==='oberflaeche'||role==='volumen')?0x9b8cff : role==='hindernis'?0xe07a6a : role==='bauraum'?0x4fd1a5 : 0x9aa6b2;
+function impMat(role, sel){ const bo=(typeof el_!=='undefined'&&el_('bauOpa'))?clamp(+el_('bauOpa').value,0,1):0.25;
+  return new THREE.MeshStandardMaterial({ color: sel?0xe8c45a:impColor(role),
+  transparent:true, opacity: role==='bauraum'?bo:(sel?0.6:0.5), roughness:0.7, metalness:0.05, side:THREE.DoubleSide }); }
+// Rotation/Skalierung/Position eines Imports: lokale Mesh-Koordinaten <-> Welt.
+function impEnsureRot(im){
+  const key=(im.rx||0)+'|'+(im.ry||0)+'|'+(im.rz||0);
+  if(im._rotKey===key) return;
+  const e=new THREE.Euler((im.rx||0)*Math.PI/180,(im.ry||0)*Math.PI/180,(im.rz||0)*Math.PI/180,'XYZ');
+  const el=new THREE.Matrix4().makeRotationFromEuler(e).elements;
+  im._R=[el[0],el[4],el[8], el[1],el[5],el[9], el[2],el[6],el[10]]; im._rotKey=key;
+}
+function impLocalToWorld(im, lp){
+  impEnsureRot(im); const R=im._R, s=im.scale, x=lp[0]*s, y=lp[1]*s, z=lp[2]*s;
+  return [ R[0]*x+R[1]*y+R[2]*z+im.x, R[3]*x+R[4]*y+R[5]*z+im.y, R[6]*x+R[7]*y+R[8]*z+im.z ];
+}
+function impWorldToLocal(im, wp){
+  impEnsureRot(im); const R=im._R, s=im.scale||1e-6, dx=wp[0]-im.x, dy=wp[1]-im.y, dz=wp[2]-im.z;
+  return [ (R[0]*dx+R[3]*dy+R[6]*dz)/s, (R[1]*dx+R[4]*dy+R[7]*dz)/s, (R[2]*dx+R[5]*dy+R[8]*dz)/s ];
+}
+function impRotateDir(im, d){
+  impEnsureRot(im); const R=im._R;
+  return [ R[0]*d[0]+R[1]*d[1]+R[2]*d[2], R[3]*d[0]+R[4]*d[1]+R[5]*d[2], R[6]*d[0]+R[7]*d[1]+R[8]*d[2] ];
+}
+function rebuildImpGroup(){
+  // nur Material entsorgen — die Geometrie gehört zu imports[i].geom und bleibt erhalten
+  scene.remove(importGroup);
+  importGroup.children.forEach(m=>{ if(m.material) m.material.dispose(); });
+  importGroup=new THREE.Group(); scene.add(importGroup);
+  imports.forEach((im,i)=>{
+    const m=new THREE.Mesh(im.geom, impMat(im.role, selKind==='imp'&&i===selImp));
+    m.position.set(im.x,im.y,im.z); m.scale.setScalar(Math.max(im.scale,0.001));
+    m.rotation.set((im.rx||0)*Math.PI/180,(im.ry||0)*Math.PI/180,(im.rz||0)*Math.PI/180);
+    m.userData={kind:'imp', idx:i};
+    importGroup.add(m);
+  });
+  if(selKind==='imp' && selImp>=0 && selImp<importGroup.children.length) tControls.attach(importGroup.children[selImp]);
+  dirty=true;
+}
+// Start-Handle an die aktuelle Startlage setzen (nur Einzelbaum sichtbar)
+function updateStartHandle(p){
+  const show = !p.dual;
+  startHandle.visible = show;
+  startHandle.scale.setScalar(Math.max(BOX*0.045, 1.0));
+  if(!(selKind==='start' && tControls.dragging))
+    startHandle.position.set(clamp(p.sx,0,BOX), clamp(p.sy,0,BOX), clamp(p.sz,0,BOX));
+  if(!show && selKind==='start') deselectAll();
+}
+function paintAll(){
+  for(let k=0;k<obsGroup.children.length;k++){
+    const m=obsGroup.children[k]; m.material.dispose(); m.material=(selKind==='obs'&&k===selObs)?matSel():obsMatNormal();
+  }
+  for(let k=0;k<attrGroup.children.length;k++){
+    const m=attrGroup.children[k]; m.material.dispose(); m.material=(selKind==='attr'&&k===selAttr)?matSel():attrMatNormal();
+  }
+  for(let k=0;k<importGroup.children.length;k++){
+    const m=importGroup.children[k]; m.material.dispose(); m.material=impMat(imports[k]?imports[k].role:'referenz', selKind==='imp'&&k===selImp);
+  }
+  for(let k=0;k<mtGroup.children.length;k++){
+    const m=mtGroup.children[k]; m.material.dispose(); m.material=(selKind==='mtgt'&&k===selMt)?matSel():mtMatNormal();
+  }
+  markListSelection();
+}
+// Hebt die Zeile des gewählten Objekts in den Listen hervor (Hindernisse/Attraktoren/STL-Importe) und scrollt sie sichtbar.
+function markListSelection(){
+  const sets=[['obsList','obs',selObs],['attrList','attr',selAttr],['impList','imp',selImp]];
+  for(const [id,kind,sel] of sets){
+    const box=el_(id); if(!box) continue;
+    Array.from(box.children).forEach((row,i)=>{
+      const on=(selKind===kind && i===sel); row.classList.toggle('sel',on);
+      if(on) row.scrollIntoView({block:'nearest'});
+    });
+  }
+}
+function deselectAll(){ selKind=null; selObs=-1; selAttr=-1; selImp=-1; selMt=-1; selFl=-1; tControls.detach(); paintAll(); renderOutliner(); renderSelProps(); dirty=true; }
+function selectObs(i){
+  if(i<0 || i>=obstacles.length){ deselectAll(); return; }
+  selKind='obs'; selObs=i; selAttr=-1; selImp=-1; selMt=-1; paintAll();
+  if(selObs<obsGroup.children.length) tControls.attach(obsGroup.children[selObs]);
+  renderOutliner(); renderSelProps(); dirty=true;
+}
+function selectAttr(i){
+  if(i<0 || i>=attractors.length){ deselectAll(); return; }
+  selKind='attr'; selAttr=i; selObs=-1; selImp=-1; selMt=-1; paintAll();
+  if(selAttr<attrGroup.children.length) tControls.attach(attrGroup.children[selAttr]);
+  renderOutliner(); renderSelProps(); dirty=true;
+}
+function selectImp(i){
+  if(i<0 || i>=imports.length){ deselectAll(); return; }
+  selKind='imp'; selImp=i; selObs=-1; selAttr=-1; selMt=-1; paintAll();
+  if(selImp<importGroup.children.length) tControls.attach(importGroup.children[selImp]);
+  renderOutliner(); renderSelProps(); dirty=true;
+}
+function selectMt(i){
+  if(i<0 || i>=manualTargets.length){ deselectAll(); return; }
+  selKind='mtgt'; selMt=i; selObs=-1; selAttr=-1; selImp=-1; paintAll();
+  if(selMt<mtGroup.children.length) tControls.attach(mtGroup.children[selMt]);
+  renderOutliner(); renderSelProps(); dirty=true;
+}
+function selectStart(){
+  if(el_('dual').checked){ deselectAll(); return; }   // Doppelbaum: Start automatisch
+  selKind='start'; selObs=-1; selAttr=-1; selImp=-1; selMt=-1; paintAll();
+  tControls.attach(startHandle);
+  renderOutliner(); renderSelProps(); dirty=true;
+}
+const _ray=new THREE.Raycaster(), _ndc=new THREE.Vector2();
+function trySelect(e){
+  const rect=renderer.domElement.getBoundingClientRect();
+  _ndc.x=((e.clientX-rect.left)/rect.width)*2-1;
+  _ndc.y=-((e.clientY-rect.top)/rect.height)*2+1;
+  _ray.setFromCamera(_ndc, camera);
+  if(placeMode){ placeTarget(); return; }   // Klick setzt einen Zielpunkt
+  // Auslass-Punktwolke zuerst (großzügige Trefferschwelle in Weltkoordinaten)
+  if(outletCloud && outletPos.length){
+    _ray.params.Points.threshold = Math.max(BOX*0.03, 1.6);
+    const ph=_ray.intersectObject(outletCloud, false);
+    if(ph.length){ clickOutlet(outletPos[ph[0].index]); return; }
+  }
+  const targets = flangeMarkers.children.concat(obsGroup.children, attrGroup.children, importGroup.children, mtGroup.children);
+  if(startHandle.visible) targets.push(startHandle);
+  const hits=_ray.intersectObjects(targets, false);
+  if(!hits.length){ deselectAll(); return; }
+  const o=hits[0].object;
+  if(o.userData.kind==='inlet'){ selectStart(); return; }                  // Einlass -> Start (Einlassflansch)
+  if(o.userData.start) selectStart();
+  else if(o.userData.kind==='attr') selectAttr(o.userData.idx);
+  else if(o.userData.kind==='imp') selectImp(o.userData.idx);
+  else if(o.userData.kind==='mtgt') selectMt(o.userData.idx);
+  else selectObs(o.userData.idx);
+}
+// Setzt einen Zielpunkt: auf einem STL-Vertex (nächster zum Trefferpunkt), sonst
+// auf Hindernis-Oberfläche, sonst auf die Mittelhöhe-Ebene.
+function placeTarget(){
+  const meshes=importGroup.children.concat(obsGroup.children);
+  const hits=_ray.intersectObjects(meshes, false);
+  let p;
+  if(hits.length){
+    const o=hits[0].object, hp=hits[0].point;
+    if(o.userData.kind==='imp'){
+      // auf den nächsten Vertex des Gitternetzes snappen (Weltkoordinaten)
+      const im=imports[o.userData.idx], pos=im.geom.attributes.position;
+      let best=1e18, bp=[hp.x,hp.y,hp.z];
+      for(let i=0;i<pos.count;i++){ const w=impLocalToWorld(im,[pos.getX(i),pos.getY(i),pos.getZ(i)]);
+        const dx=w[0]-hp.x,dy=w[1]-hp.y,dz=w[2]-hp.z,dd=dx*dx+dy*dy+dz*dz; if(dd<best){best=dd;bp=w;} }
+      p=bp;
+    } else { p=[hp.x,hp.y,hp.z]; }
+  } else {
+    const o=_ray.ray.origin, d=_ray.ray.direction; const zc=BOX/2;
+    if(Math.abs(d.z)<1e-6){ p=[BOX/2,BOX/2,zc]; } else { const t=(zc-o.z)/d.z; p=[o.x+d.x*t, o.y+d.y*t, zc]; }
+  }
+  manualTargets.push({x:+p[0].toFixed(2), y:+p[1].toFixed(2), z:+p[2].toFixed(2), w:1});
+  selMt=manualTargets.length-1; selKind='mtgt';
+  rebuildMtGroup(); selectMt(selMt); rebuild(); scheduleHistory();
+}
+function syncListField(listId, i, obj){
+  const rows=el_(listId).children, row=rows[i]; if(!row) return;
+  const set=(k,v)=>{ const inp=row.querySelector('[data-k="'+k+'"]'); if(inp) inp.value=v; };
+  set('x',obj.x); set('y',obj.y); set('z',obj.z); set('size',obj.size);
+}
+// Griff-Ziehen entkoppelt vom (animierten) Neu-Wachsen: sonst wird das Wachstum
+// bei jedem Maus-Frame neu gestartet und man sieht nur den nachlaufenden Anwuchs-Stummel.
+let _gizDeb=null;
+function gizmoRebuild(){ dirty=true; clearTimeout(_gizDeb); _gizDeb=setTimeout(()=>{ rebuild(); scheduleHistory(); }, 130); }
+function onGizmo(){
+  if(selKind==='start'){
+    const m=startHandle;
+    el_('sx').value=clamp(Math.round(m.position.x),0,BOX);
+    el_('sy').value=clamp(Math.round(m.position.y),0,BOX);
+    el_('sz').value=clamp(Math.round(m.position.z),0,BOX);
+    gizmoRebuild(); return;
+  }
+  if(selKind==='obs' && selObs>=0 && selObs<obsGroup.children.length){
+    const m=obsGroup.children[selObs], ob=obstacles[selObs];
+    ob.x=+m.position.x.toFixed(2); ob.y=+m.position.y.toFixed(2); ob.z=+m.position.z.toFixed(2);
+    if(tControls.getMode()==='scale'){ const s=Math.max(m.scale.x,0.5); m.scale.setScalar(s); ob.size=+s.toFixed(2); }
+    syncListField('obsList', selObs, ob); gizmoRebuild(); return;
+  }
+  if(selKind==='attr' && selAttr>=0 && selAttr<attrGroup.children.length){
+    const m=attrGroup.children[selAttr], a=attractors[selAttr];
+    a.x=+m.position.x.toFixed(2); a.y=+m.position.y.toFixed(2); a.z=+m.position.z.toFixed(2);
+    if(tControls.getMode()==='scale'){ const s=Math.max(m.scale.x,0.5); m.scale.setScalar(s); a.size=+s.toFixed(2); }
+    syncListField('attrList', selAttr, a); gizmoRebuild(); return;
+  }
+  if(selKind==='imp' && selImp>=0 && selImp<importGroup.children.length){
+    const m=importGroup.children[selImp], im=imports[selImp], mode=tControls.getMode();
+    if(mode==='rotate'){
+      const R2D=180/Math.PI;
+      im.rx=+(m.rotation.x*R2D).toFixed(1); im.ry=+(m.rotation.y*R2D).toFixed(1); im.rz=+(m.rotation.z*R2D).toFixed(1);
+      im._rotKey=null;   // Rotationsmatrix neu berechnen
+    } else {
+      im.x=+m.position.x.toFixed(2); im.y=+m.position.y.toFixed(2); im.z=+m.position.z.toFixed(2);
+      if(mode==='scale'){ const s=Math.max(m.scale.x,0.05); m.scale.setScalar(s); im.scale=+s.toFixed(3); }
+    }
+    syncImpField(selImp); gizmoRebuild(); return;
+  }
+  if(selKind==='mtgt' && selMt>=0 && selMt<mtGroup.children.length){
+    const m=mtGroup.children[selMt], mt=manualTargets[selMt];
+    mt.x=+m.position.x.toFixed(2); mt.y=+m.position.y.toFixed(2); mt.z=+m.position.z.toFixed(2);
+    gizmoRebuild(); return;
+  }
+}
+function setGizmoMode(mode){ tControls.setMode(mode);
+  tControls.setSpace(mode==='rotate'?'local':'world');   // Drehen um Objekt-Achsen, Verschieben/Skalieren in Welt
+  el_('btnMove').classList.toggle('on', mode==='translate');
+  el_('btnRotate').classList.toggle('on', mode==='rotate');
+  el_('btnScale').classList.toggle('on', mode==='scale'); dirty=true; }
+// Szene-Outliner
+function renderOutliner(){
+  const box=el_('outliner'); if(!box) return;
+  const dual=el_('dual').checked;
+  let html='';
+  if(!dual){
+    html+=`<div class="olrow${selKind==='start'?' on':''}" data-sel="start"><span class="dot" style="background:#4fd86a"></span>Start</div>`;
+  } else {
+    html+=`<div class="olrow" style="cursor:default;opacity:.6"><span class="dot" style="background:#4fd86a"></span>Start A/B (automatisch)</div>`;
+  }
+  attractors.forEach((a,i)=>{
+    const on=(selKind==='attr'&&selAttr===i)?' on':'';
+    html+=`<div class="olrow${on}" data-sel="attr" data-i="${i}"><span class="dot" style="background:#9b8cff"></span>Attraktor ${i+1} · ${a.shape==='box'?'Box':'Kugel'}</div>`;
+  });
+  obstacles.forEach((ob,i)=>{
+    const on=(selKind==='obs'&&selObs===i)?' on':'';
+    html+=`<div class="olrow${on}" data-sel="obs" data-i="${i}"><span class="dot" style="background:#99a2b0"></span>Hindernis ${i+1} · ${ob.shape==='box'?'Box':'Kugel'}</div>`;
+  });
+  imports.forEach((im,i)=>{
+    const on=(selKind==='imp'&&selImp===i)?' on':'';
+    html+=`<div class="olrow${on}" data-sel="imp" data-i="${i}"><span class="dot" style="background:#${impColor(im.role).toString(16).padStart(6,'0')}"></span>${im.name} · ${im.role}</div>`;
+  });
+  manualTargets.forEach((m,i)=>{
+    const on=(selKind==='mtgt'&&selMt===i)?' on':'';
+    html+=`<div class="olrow${on}" data-sel="mtgt" data-i="${i}"><span class="dot" style="background:#38d6d6"></span>Zielpunkt ${i+1}</div>`;
+  });
+  box.innerHTML=html;
+  box.querySelectorAll('.olrow[data-sel]').forEach(r=>{
+    r.addEventListener('click',()=>{
+      const kind=r.getAttribute('data-sel');
+      if(kind==='start') selectStart();
+      else if(kind==='attr') selectAttr(+r.getAttribute('data-i'));
+      else if(kind==='imp') selectImp(+r.getAttribute('data-i'));
+      else if(kind==='mtgt') selectMt(+r.getAttribute('data-i'));
+      else selectObs(+r.getAttribute('data-i'));
+    });
+  });
+  renderFlangeList();
+  renderFlangeMarkers(lastTrees);
+}
+// Eigene Liste aller Flansche (Flansch 1, 2 … + Einlass-Flansch); anklickbar,
+// highlightet den zugehörigen Marker und öffnet den Editor darunter.
+function renderFlangeList(){
+  const box=el_('flangeList'); if(!box) return;
+  let rows='';
+  flanges.forEach((f,i)=>{
+    const on=(selKind==='flange'&&selFl===i)?' on':'';
+    rows+=`<div class="olrow${on}" data-fl="out" data-i="${i}"><span class="dot" style="background:#ffb03a"></span>Flansch ${i+1} · ⌀${f.d} mm</div>`;
+  });
+  if(inletFlange.fl){ const on=(selKind==='start')?' on':'';
+    rows+=`<div class="olrow${on}" data-fl="in"><span class="dot" style="background:#4fd86a"></span>Einlass-Flansch · ⌀${inletFlange.fd} mm</div>`; }
+  box.innerHTML = rows ? ('<div class="hint" style="margin:9px 0 3px">Flansche</div>'+rows) : '';
+  box.querySelectorAll('.olrow[data-fl]').forEach(r=>{
+    r.addEventListener('click',()=>{ r.getAttribute('data-fl')==='in' ? selectStart() : selectFlange(+r.getAttribute('data-i')); });
+  });
+}
+// Kontext-Editor des gewählten Flansches: Auslass-Flansch (aus flanges[]) ODER Einlass (inletFlange).
+function renderSelProps(){
+  const box=el_('selProps'); if(!box) return;
+  let obj=null, title='', isFlange=false;
+  if(selKind==='flange' && selFl>=0 && selFl<flanges.length){ obj=flanges[selFl]; title='Flansch '+(selFl+1)+' · Auslass'; isFlange=true; }
+  else if(selKind==='start' && !el_('dual').checked){ obj=inletFlange; title='Einlass-Flansch (Start)'; }
+  if(!obj){ box.innerHTML=''; return; }
+  const nf='width:56px;background:#21303a;color:var(--accent);border:1px solid var(--line);border-radius:6px;padding:1px 5px;font-size:12px;text-align:right';
+  const fd=obj.fd!=null?obj.fd:(obj.d!=null?obj.d:6);
+  const D=(k,def)=> obj[k]!=null?obj[k]:def;
+  // Auslass-Flansch: immer aktiv, mit Löschen. Einlass: an/aus-Checkbox.
+  const head = isFlange
+    ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:12px;color:var(--accent)">${title}</span><button id="spDel" class="mini" style="padding:1px 7px">🗑 löschen</button></div>`
+    : `<div style="font-size:12px;color:var(--accent);margin-bottom:6px">${title}</div>
+       <label class="check" style="margin:0"><input type="checkbox" id="spFl" ${inletFlange.fl?'checked':''}><span>Einlass-Flansch aktiv</span></label>`;
+  const bodyShown = isFlange || inletFlange.fl;
+  box.innerHTML=`<div style="margin-top:8px;padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#141b22">
+    ${head}
+    <div id="spBody" style="margin-top:7px;display:${bodyShown?'grid':'none'};grid-template-columns:auto 60px;gap:5px 8px;align-items:center;font-size:12px">
+      <span>⌀ (mm)</span><input type="number" id="spD" step="0.5" min="1" value="${isFlange?obj.d:D('fd',6)}" style="${nf}">
+      <span>Dicke (mm)</span><input type="number" id="spT" step="0.1" min="0.3" value="${isFlange?obj.t:D('ft',1.5)}" style="${nf}">
+      <span>Winkel X (°)</span><input type="number" id="spAx" step="1" min="-80" max="80" value="${isFlange?obj.ax:D('fax',0)}" style="${nf}">
+      <span>Winkel Y (°)</span><input type="number" id="spAy" step="1" min="-80" max="80" value="${isFlange?obj.ay:D('fay',0)}" style="${nf}">
+    </div>
+    <p class="hint" style="margin:6px 0 0">Winkel X/Y kippen die Scheibe gegenüber der Astachse.</p>
+  </div>`;
+  const commit=()=>{
+    const d=+el_('spD').value, t=+el_('spT').value, ax=+el_('spAx').value, ay=+el_('spAy').value;
+    if(isFlange){ obj.d=d; obj.t=t; obj.ax=ax; obj.ay=ay; }
+    else { obj.fd=d; obj.ft=t; obj.fax=ax; obj.fay=ay; }
+    refreshFlanges(); scheduleHistory();
+  };
+  ['spD','spT','spAx','spAy'].forEach(id=>{ const e=el_(id); if(e) e.addEventListener('change',commit); });
+  if(isFlange){ el_('spDel').addEventListener('click',()=>{ flanges.splice(selFl,1); selKind=null; selFl=-1; box.innerHTML=''; refreshFlanges(); renderOutliner(); scheduleHistory(); }); }
+  else { el_('spFl').addEventListener('change',e=>{
+      inletFlange.fl=e.target.checked;
+      if(inletFlange.fl){ const pp=params(); if(inletFlange.fd==null)inletFlange.fd=pp.flanschDia; if(inletFlange.ft==null)inletFlange.ft=pp.flanschThk; }
+      el_('spBody').style.display=inletFlange.fl?'grid':'none'; refreshFlanges(); renderOutliner(); scheduleHistory();
+    }); }
+}
+// Attraktor-Ziele: streut count Punkte in jedes Attraktor-Volumen (zusätzlich zur globalen Wolke)
+function attractorTargets(seed){
+  const out=[]; let s=(seed*7919+12345)>>>0;
+  const rnd=()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; };
+  for(const a of attractors){
+    const n=Math.max(1, a.count|0), w=a.weight||1;
+    for(let i=0;i<n;i++){
+      let p;
+      if(a.shape==='box'){
+        p=[a.x+(rnd()*2-1)*a.size, a.y+(rnd()*2-1)*a.size, a.z+(rnd()*2-1)*a.size];
+      } else {
+        let x,y,z,d; do{ x=rnd()*2-1; y=rnd()*2-1; z=rnd()*2-1; d=x*x+y*y+z*z; }while(d>1);
+        p=[a.x+x*a.size, a.y+y*a.size, a.z+z*a.size];
+      }
+      out.push({p, w});
+    }
+  }
+  return out;
+}
+// ---------- STL-Import (Rolle pro Objekt) ----------
+let imports=[];
+// Zerlegt eine Geometrie in zusammenhängende Komponenten (geschweißte Vertices).
+function splitComponents(geom){
+  const pos=geom.attributes.position, triCount=pos.count/3;
+  if(triCount>120000) return [geom];   // zu groß -> nicht splitten (Performance)
+  // Vertices auf Raster schweißen -> eindeutige IDs
+  const map=new Map(), vid=new Array(pos.count); const q=v=>Math.round(v*1000)/1000;
+  for(let i=0;i<pos.count;i++){
+    const key=q(pos.getX(i))+','+q(pos.getY(i))+','+q(pos.getZ(i));
+    let id=map.get(key); if(id===undefined){ id=map.size; map.set(key,id); } vid[i]=id;
+  }
+  // Union-Find über Dreiecke, die geschweißte Vertices teilen
+  const parent=new Array(map.size); for(let i=0;i<parent.length;i++) parent[i]=i;
+  const find=a=>{ while(parent[a]!==a){ parent[a]=parent[parent[a]]; a=parent[a]; } return a; };
+  const uni=(a,b)=>{ a=find(a); b=find(b); if(a!==b) parent[a]=b; };
+  for(let t=0;t<triCount;t++){ const a=vid[t*3],b=vid[t*3+1],c=vid[t*3+2]; uni(a,b); uni(b,c); }
+  const comps=new Map();
+  for(let t=0;t<triCount;t++){ const root=find(vid[t*3]); let arr=comps.get(root); if(!arr){arr=[];comps.set(root,arr);} arr.push(t); }
+  if(comps.size<=1) return [geom];
+  const out=[];
+  for(const arr of comps.values()){
+    const p3=new Float32Array(arr.length*9);
+    for(let k=0;k<arr.length;k++){ const t=arr[k];
+      for(let j=0;j<3;j++){ const si=(t*3+j); const di=(k*3+j)*3;
+        p3[di]=pos.getX(si); p3[di+1]=pos.getY(si); p3[di+2]=pos.getZ(si); } }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(p3,3)); g.computeVertexNormals();
+    out.push(g);
+  }
+  return out;
+}
+// Wandelt eine geladene Geometrie in ein Import-Objekt (zentriert, in den Bauraum gesetzt).
+function addImportGeom(geom, name, pos, role){
+  geom.computeBoundingBox(); const bb=geom.boundingBox, c=bb.getCenter(new THREE.Vector3());
+  geom.translate(-c.x,-c.y,-c.z);   // auf Ursprung zentrieren
+  geom.computeBoundingBox(); geom.computeBoundingSphere();
+  const P = pos || {x:BOX/2, y:BOX/2, z:BOX/2};   // pos=Originalzentrum => koordinatentreu (für Bauraum aus Mattheck)
+  imports.push({ geom, name, role:role||'referenz', x:P.x, y:P.y, z:P.z, scale:1, rx:0, ry:0, rz:0, count:80, weight:1, stop:-1, coll:-1, flip:false });
+}
+function loadBauStl(file){ const reader=new FileReader();
+  reader.onload=ev=>{ try{ const g=new THREE.STLLoader().parse(ev.target.result);
+    g.computeBoundingBox(); const bb=g.boundingBox, c=bb.getCenter(new THREE.Vector3());
+    const mx=Math.max(bb.max.x,bb.max.y,bb.max.z);
+    if(el_('box')){ const cap=+el_('box').max||120; el_('box').value=Math.min(Math.max(Math.ceil(mx*1.03),+el_('box').value),cap); if(el_('vBox'))el_('vBox').textContent=el_('box').value; }
+    addImportGeom(g, file.name.replace(/\.stl$/i,''), {x:c.x,y:c.y,z:c.z}, 'bauraum');
+    renderImpList(); rebuildImpGroup(); selectImp(imports.length-1); rebuild(); if(typeof scheduleHistory==='function') scheduleHistory();
+    el_('flowImpInfo').textContent='Bauraum-STL geladen ('+file.name+') — koordinatentreu, Rolle „Bauraum". Wachstum füllt jetzt die Form.';
+  }catch(err){ el_('flowImpInfo').textContent='Bauraum-STL-Fehler: '+err.message; console.warn(err); } };
+  reader.readAsArrayBuffer(file); }
+function loadStlFile(file){
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const loader=new THREE.STLLoader();
+      const g=loader.parse(ev.target.result);
+      const split=el_('impSplit').checked;
+      const parts=split? splitComponents(g) : [g];
+      const base=file.name.replace(/\.stl$/i,'');
+      parts.forEach((pg,k)=> addImportGeom(pg, parts.length>1?`${base} #${k+1}`:base));
+      renderImpList(); rebuildImpGroup(); selectImp(imports.length-1); rebuild(); scheduleHistory();
+      el_('impInfo').textContent=`${parts.length} Objekt(e) importiert.`;
+    }catch(err){ el_('impInfo').textContent='Fehler beim Lesen: '+err.message; console.warn(err); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+// Ziele aus Importen: Oberfläche kolonisieren (1–200) oder Volumen kolonisieren (1–500).
+function importTargets(seed){
+  let out=[];
+  imports.forEach((im,ii)=>{
+    if(im.role==='oberflaeche') out=out.concat(sampleSurface(im, clamp(im.count|0,1,2000), (seed+ii*131+1)>>>0));
+    else if(im.role==='volumen') out=out.concat(sampleVolume(im, clamp(im.count|0,1,2000), (seed+ii*131+7)>>>0));
+  });
+  return out;
+}
+// Gleichmäßige (flächengewichtete) Punkte auf der Mesh-Oberfläche.
+function sampleSurface(im, count, seed){
+  const pos=im.geom.attributes.position, nt=pos.count/3;
+  let s=(seed>>>0)||1; const rnd=()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; };
+  const cum=new Float64Array(nt); let total=0;
+  for(let t=0;t<nt;t++){ const o=t*3;
+    const ax=pos.getX(o),ay=pos.getY(o),az=pos.getZ(o), bx=pos.getX(o+1),by=pos.getY(o+1),bz=pos.getZ(o+1), cx=pos.getX(o+2),cy=pos.getY(o+2),cz=pos.getZ(o+2);
+    const ux=bx-ax,uy=by-ay,uz=bz-az, vx=cx-ax,vy=cy-ay,vz=cz-az;
+    const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+    total+=0.5*Math.sqrt(nx*nx+ny*ny+nz*nz); cum[t]=total;
+  }
+  if(total<=0) return [];
+  const out=[];
+  for(let q=0;q<count;q++){
+    const r=rnd()*total; let lo=0,hi=nt-1; while(lo<hi){ const mid=(lo+hi)>>1; if(cum[mid]<r) lo=mid+1; else hi=mid; }
+    const o=lo*3;
+    const ax=pos.getX(o),ay=pos.getY(o),az=pos.getZ(o), bx=pos.getX(o+1),by=pos.getY(o+1),bz=pos.getZ(o+1), cx=pos.getX(o+2),cy=pos.getY(o+2),cz=pos.getZ(o+2);
+    let u=rnd(), v=rnd(); if(u+v>1){ u=1-u; v=1-v; }
+    const px=ax+u*(bx-ax)+v*(cx-ax), py=ay+u*(by-ay)+v*(cy-ay), pz=az+u*(bz-az)+v*(cz-az);
+    // Flächennormale (ggf. umkehren), Zielpunkt nach AUSSEN versetzen -> Ast zielt von außen auf die Oberfläche.
+    let nx=(by-ay)*(cz-az)-(bz-az)*(cy-ay), ny=(bz-az)*(cx-ax)-(bx-ax)*(cz-az), nz=(bx-ax)*(cy-ay)-(by-ay)*(cx-ax);
+    const nl=Math.hypot(nx,ny,nz)||1, fn=im.flip?-1:1; nx=nx/nl*fn; ny=ny/nl*fn; nz=nz/nl*fn;
+    const wp=impLocalToWorld(im,[px,py,pz]), wn=impRotateDir(im,[nx,ny,nz]);
+    const gap=Math.max(im.stop>=0?im.stop:0, im.coll>=0?im.coll:0);   // Ziele außerhalb Stopp UND Umwachsen-Hülle
+    const off=gap+Math.max(BOX*0.006,0.3);
+    out.push({ p:[wp[0]+wn[0]*off, wp[1]+wn[1]*off, wp[2]+wn[2]*off], w:im.weight||1 });
+  }
+  return out;
+}
+// Punkte gleichmäßig im Mesh-Volumen (Rejection über das Innen-Gitter).
+function sampleVolume(im, count, seed){
+  ensureImportGrids(); const g=im.grid; if(!g) return [];
+  let s=(seed>>>0)||1; const rnd=()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; };
+  const W=g.res*g.dx, H=g.res*g.dy, D=g.res*g.dz, out=[]; let guard=0, maxG=count*100;
+  while(out.length<count && guard<maxG){ guard++;
+    const lx=g.min[0]+rnd()*W, ly=g.min[1]+rnd()*H, lz=g.min[2]+rnd()*D;
+    const i=Math.floor((lx-g.min[0])/g.dx), j=Math.floor((ly-g.min[1])/g.dy), k=Math.floor((lz-g.min[2])/g.dz);
+    if(i<0||j<0||k<0||i>=g.res||j>=g.res||k>=g.res) continue;
+    if(g.cell[(k*g.res+j)*g.res+i]===1) out.push({ p:impLocalToWorld(im,[lx,ly,lz]), w:im.weight||1 });
+  }
+  return out;
+}
+// ----- Mesh-exakt: Innen/Außen über einmalige Solid-Voxelisierung (kein Box-Approx) -----
+// Baut ein Innen/Außen-Gitter im LOKALEN Mesh-Koordinatensystem (Scanline entlang X
+// pro (y,z)-Zelle, Paritätstest). Wird je Geometrie einmal berechnet und gecached.
+function buildInsideGrid(geom, res){
+  const pos=geom.attributes.position, nt=pos.count/3;
+  geom.computeBoundingBox(); const bb=geom.boundingBox;
+  const min=[bb.min.x,bb.min.y,bb.min.z], max=[bb.max.x,bb.max.y,bb.max.z];
+  for(let a=0;a<3;a++){ const pad=(max[a]-min[a])*0.03+1e-3; min[a]-=pad; max[a]+=pad; }
+  const dx=(max[0]-min[0])/res, dy=(max[1]-min[1])/res, dz=(max[2]-min[2])/res;
+  const cell=new Uint8Array(res*res*res);
+  const tri=new Float32Array(nt*9);
+  for(let i=0;i<nt*3;i++){ tri[i*3]=pos.getX(i); tri[i*3+1]=pos.getY(i); tri[i*3+2]=pos.getZ(i); }
+  const xs=[];
+  for(let k=0;k<res;k++){ const Z=min[2]+(k+0.5)*dz;
+    for(let j=0;j<res;j++){ const Y=min[1]+(j+0.5)*dy;
+      xs.length=0;
+      for(let t=0;t<nt;t++){ const o=t*9;
+        const ax=tri[o],ay=tri[o+1],az=tri[o+2], bx=tri[o+3],by=tri[o+4],bz=tri[o+5], cx=tri[o+6],cy=tri[o+7],cz=tri[o+8];
+        const v0x=by-ay,v0y=bz-az, v1x=cy-ay,v1y=cz-az, v2x=Y-ay,v2y=Z-az;
+        const den=v0x*v1y - v1x*v0y; if(Math.abs(den)<1e-12) continue;
+        const a=(v2x*v1y - v1x*v2y)/den; const b=(v0x*v2y - v2x*v0y)/den;
+        if(a<0||b<0||a+b>1) continue;
+        xs.push(ax + a*(bx-ax) + b*(cx-ax));
+      }
+      if(xs.length<2) continue;
+      xs.sort((p,q)=>p-q);
+      for(let i=0;i<res;i++){ const Xc=min[0]+(i+0.5)*dx;
+        let cnt=0; for(let m=0;m<xs.length;m++){ if(xs[m]<Xc) cnt++; else break; }
+        if(cnt&1) cell[(k*res+j)*res+i]=1;
+      }
+    }
+  }
+  return {res, min, dx, dy, dz, cell};
+}
+let impClearance=1.5;   // aktuelle Hindernis-Clearance (mm) — aus dem Clearance-Regler
+function dilateGrid(cell, res, nc){
+  let cur=cell;
+  for(let it=0; it<nc; it++){
+    const next=cur.slice();
+    for(let k=0;k<res;k++)for(let j=0;j<res;j++)for(let i=0;i<res;i++){
+      if(cur[(k*res+j)*res+i]) continue;
+      if((i>0&&cur[(k*res+j)*res+i-1])||(i<res-1&&cur[(k*res+j)*res+i+1])||
+         (j>0&&cur[(k*res+j-1)*res+i])||(j<res-1&&cur[(k*res+j+1)*res+i])||
+         (k>0&&cur[((k-1)*res+j)*res+i])||(k<res-1&&cur[((k+1)*res+j)*res+i])) next[(k*res+j)*res+i]=1;
+    }
+    cur=next;
+  }
+  return cur;
+}
+function ensureImportGrids(){
+  for(const im of imports){
+    const isColon = (im.role==='oberflaeche'||im.role==='volumen');
+    const colonBlock = isColon && (im.stop>=0 || im.coll>=0);   // Sperrzone aktiv?
+    const needsGrid = im.role==='bauraum'||im.role==='hindernis'||im.role==='volumen' || (im.role==='oberflaeche' && colonBlock);
+    if(needsGrid && !im.grid){
+      const nt=im.geom.attributes.position.count/3;
+      im.grid=buildInsideGrid(im.geom, nt>20000?24:36);   // feinere Hülle = bessere Oberflächen-Treffer
+    }
+    // Block-Gitter: Hindernis (Clearance) ODER Kolonisierung (Umwachsen-Clearance; feiner Stopp kommt aus dem Punkt-Offset).
+    let blockDist=null;
+    if(im.role==='hindernis') blockDist=impClearance;
+    else if(colonBlock) blockDist=(im.coll>=0?im.coll:0);
+    if(blockDist!=null && im.grid){
+      const nc=Math.max(0, Math.round((blockDist/Math.max(im.scale,1e-3))/im.grid.dx));
+      const key=im.role+'|'+nc;
+      if(im._blkKey!==key){ im.blockGrid=dilateGrid(im.grid.cell, im.grid.res, nc); im._blkKey=key; }
+    } else { im.blockGrid=null; im._blkKey=null; }
+  }
+}
+// Ist P in einer Sperrzone (Hindernis ODER Anschnitt-Stopp eines Zielobjekts)?
+function importBlocked(P){
+  for(const im of imports){
+    if(!im.blockGrid) continue;
+    const g=im.grid, lp=impWorldToLocal(im,P);
+    const i=Math.floor((lp[0]-g.min[0])/g.dx), j=Math.floor((lp[1]-g.min[1])/g.dy), k=Math.floor((lp[2]-g.min[2])/g.dz);
+    if(i<0||j<0||k<0||i>=g.res||j>=g.res||k>=g.res) continue;
+    if(im.blockGrid[(k*g.res+j)*g.res+i]===1) return true;
+  }
+  return false;
+}
+function insideImport(im, P){
+  const g=im.grid; if(!g) return false; const lp=impWorldToLocal(im,P);
+  const i=Math.floor((lp[0]-g.min[0])/g.dx), j=Math.floor((lp[1]-g.min[1])/g.dy), k=Math.floor((lp[2]-g.min[2])/g.dz);
+  if(i<0||j<0||k<0||i>=g.res||j>=g.res||k>=g.res) return false;
+  return g.cell[(k*g.res+j)*g.res+i]===1;
+}
+// Filtert eine Zielwolke: bei Bauraum-Importen nur innen behalten, bei Hindernis-Importen (inkl. Clearance) entfernen.
+function applyImportRegion(list){
+  ensureImportGrids();
+  const baur=imports.filter(im=>im.role==='bauraum' && im.grid);
+  const hind=imports.filter(im=>im.role==='hindernis' && im.blockGrid);
+  if(!baur.length && !hind.length) return list;
+  return list.filter(t=>{
+    if(baur.length && !baur.some(im=>insideImport(im,t.p))) return false;
+    if(importBlocked(t.p)) return false;
+    return true;
+  });
+}
+// Nächste freie (nicht blockierte) Zelle für einen Punkt in einer Hindernis-Sperrzone.
+function nearestOutside(im, P, cells){
+  const g=im.grid, lp=impWorldToLocal(im,P);
+  const ci=clamp(Math.floor((lp[0]-g.min[0])/g.dx),0,g.res-1);
+  const cj=clamp(Math.floor((lp[1]-g.min[1])/g.dy),0,g.res-1);
+  const ck=clamp(Math.floor((lp[2]-g.min[2])/g.dz),0,g.res-1);
+  for(let r=1;r<g.res;r++){
+    for(let dk=-r;dk<=r;dk++)for(let dj=-r;dj<=r;dj++)for(let di=-r;di<=r;di++){
+      if(Math.max(Math.abs(di),Math.abs(dj),Math.abs(dk))!==r) continue;
+      const i=ci+di,j=cj+dj,k=ck+dk;
+      const outBox = (i<0||j<0||k<0||i>=g.res||j>=g.res||k>=g.res);
+      if(outBox || cells[(k*g.res+j)*g.res+i]===0){
+        const li=clamp(i,0,g.res-1), lj=clamp(j,0,g.res-1), lk=clamp(k,0,g.res-1);
+        return impLocalToWorld(im,[g.min[0]+(li+0.5)*g.dx, g.min[1]+(lj+0.5)*g.dy, g.min[2]+(lk+0.5)*g.dz]);
+      }
+    }
+  }
+  return null;
+}
+// Knoten aus Hindernis-Sperrzonen herausschieben; zusätzlich Segment-Mittelpunkte prüfen (gegen Durchschneiden).
+function projectImportHindernis(nodes){
+  const hind=imports.filter(im=>im.blockGrid);   // Hindernis + Anschnitt-Stopp
+  if(!hind.length) return;
+  const blkOf=im=>im.blockGrid;
+  for(let n=1;n<nodes.length;n++){
+    for(const im of hind){
+      const g=im.grid, blk=blkOf(im);
+      const cellAt=P=>{ const lp=impWorldToLocal(im,P); const i=Math.floor((lp[0]-g.min[0])/g.dx), j=Math.floor((lp[1]-g.min[1])/g.dy), k=Math.floor((lp[2]-g.min[2])/g.dz);
+        if(i<0||j<0||k<0||i>=g.res||j>=g.res||k>=g.res) return 0; return blk[(k*g.res+j)*g.res+i]; };
+      if(cellAt(nodes[n].pos)){ const out=nearestOutside(im, nodes[n].pos, blk); if(out) nodes[n].pos=out; continue; }
+      // Segment Eltern->Kind: Mittelpunkt blockiert? Kind nach außen ziehen.
+      const par=nodes[n].parent; if(par<0) continue;
+      const a=nodes[par].pos, b=nodes[n].pos, mid=[(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2];
+      if(cellAt(mid)){ const out=nearestOutside(im, mid, blk); if(out) nodes[n].pos=out; }
+    }
+  }
+}
+// Baut die komplette Zielwolke: globale Wolke (regionsgefiltert) + Attraktoren + Import-Ziele.
+function composeTargets(prm, seed){
+  const manual = manualTargets.map(m=>({p:[m.x,m.y,m.z], w:m.w||1}));
+  if(el_('nurManuell') && el_('nurManuell').checked) return manual.concat(flowTargets);   // nur bearbeitete Punkte (+ Kraftfluss)
+  return applyImportRegion(makeTargets(prm, seed)).concat(attractorTargets(seed)).concat(importTargets(seed)).concat(manual).concat(flowTargets);
+}
+function syncImpField(i){
+  const rows=el_('impList').children, row=rows[i]; if(!row) return;
+  const set=(k,v)=>{ const inp=row.querySelector('[data-k="'+k+'"]'); if(inp) inp.value=v; };
+  const im=imports[i];
+  set('x',im.x); set('y',im.y); set('z',im.z); set('scale',im.scale);
+  set('rx',im.rx||0); set('ry',im.ry||0); set('rz',im.rz||0);
+}
+function renderImpList(){
+  const box=el_('impList'); if(!box) return; box.innerHTML='';
+  imports.forEach((im,idx)=>{
+    const row=document.createElement('div'); row.className='obsrow';
+    row.innerHTML=`<div class="obshead">
+        <span style="flex:1;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${im.name}</span>
+        <button class="mini" data-del="${idx}">✕</button></div>
+      <div class="ctrl" style="margin:6px 0 0"><label style="font-size:11px">Rolle</label>
+        <select data-k="role">
+          <option value="referenz">Referenz (nur Anzeige)</option>
+          <option value="oberflaeche">Oberfläche kolonisieren</option>
+          <option value="volumen">Volumen kolonisieren</option>
+          <option value="bauraum">Bauraum (Form füllen)</option>
+          <option value="hindernis">Hindernis (kollisionsfrei)</option>
+        </select></div>
+      <div class="ctrl" style="margin:8px 0 0"><label style="font-size:11px">Zielpunkte (= Anzahl Äste zum Objekt) <b style="color:var(--accent)">${im.count}</b></label>
+        <input type="range" data-k="count" min="1" max="2000" step="1" value="${clamp(im.count,1,2000)}"></div>
+      <div style="margin:6px 0 0;font-size:12px;display:flex;align-items:center;gap:7px"><input type="checkbox" data-k="flip" style="width:auto;accent-color:var(--accent)"><span>Normalen umkehren (außen ↔ innen)</span></div>
+      <div class="grid">
+        <div><label>X</label><input type="number" data-k="x" value="${im.x}"></div>
+        <div><label>Y</label><input type="number" data-k="y" value="${im.y}"></div>
+        <div><label>Z</label><input type="number" data-k="z" value="${im.z}"></div>
+        <div><label>Drehung X°</label><input type="number" data-k="rx" step="5" value="${im.rx||0}"></div>
+        <div><label>Drehung Y°</label><input type="number" data-k="ry" step="5" value="${im.ry||0}"></div>
+        <div><label>Drehung Z°</label><input type="number" data-k="rz" step="5" value="${im.rz||0}"></div>
+        <div><label>Skalierung</label><input type="number" data-k="scale" step="0.05" value="${im.scale}"></div>
+        <div><label>Gewicht</label><input type="number" data-k="weight" step="0.1" value="${im.weight}"></div>
+        <div><label>Stopp vor Obj. (mm)</label><input type="number" data-k="stop" step="0.1" value="${im.stop}"></div>
+        <div><label>Umwachsen/Koll. (mm)</label><input type="number" data-k="coll" step="0.1" value="${im.coll}"></div>
+      </div>
+      <p class="hint" style="margin:6px 0 0;font-size:10.5px">Stopp: −1 = aus · 0 = berühren · &gt;0 = Anschnitt-Spalt (fein). Umwachsen: −1 = aus · ≥0 = Äste weichen dem Objekt mit diesem Abstand aus und wachsen darum herum (Methode „Wachstum").</p>`;
+    row.querySelector('[data-k="role"]').value=im.role;
+    const flipBox=row.querySelector('[data-k="flip"]'); if(flipBox) flipBox.checked=!!im.flip;
+    row.querySelectorAll('[data-k]').forEach(inp=>{
+      const ev = inp.type==='checkbox' ? 'change' : 'input';
+      inp.addEventListener(ev,()=>{ const k=inp.getAttribute('data-k');
+        im[k] = inp.type==='checkbox' ? inp.checked : (k==='role'?inp.value:+inp.value);
+        if(k==='count'){ const lb=inp.parentElement.querySelector('label b'); if(lb) lb.textContent=im.count; }
+        rebuildImpGroup(); rebuild(); scheduleHistory(); });
+    });
+    row.querySelector('[data-del]').addEventListener('click',()=>{
+      const g=imports[idx].geom; if(g&&g.dispose) g.dispose();
+      imports.splice(idx,1);
+      if(selKind==='imp'){ if(selImp===idx){ selKind=null; selImp=-1; tControls.detach(); } else if(selImp>idx) selImp--; }
+      renderImpList(); rebuildImpGroup(); rebuild(); scheduleHistory();
+    });
+    box.appendChild(row);
+  });
+  markListSelection();
+}
+function resize(){ const w=view.clientWidth,h=view.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); dirty=true; }
+addEventListener('resize',resize);
+// ---------- Ausschleif-Animation (Live-Fluss-Optimierung) ----------
+let anim=null;   // { sims:[...], speed, p }
+let growJob=null;   // zeitgeschnittenes Space-Colonization-Wachstum (nicht-blockierend)
+function loop(){
+  if(anim){
+    let allDone=true;
+    for(const s of anim.sims){ if(!s.done()){ s.step(anim.speed); allDone=false; } }
+    const geo=bakeSimTubes(anim.sims, anim.p);
+    treeMesh.geometry.dispose(); treeMesh.geometry=geo; treeLines.visible=false;
+    const pr=anim.sims.reduce((a,s)=>a+s.progress(),0)/anim.sims.length;
+    el_('sReached').textContent='Ausschleifen '+Math.round(pr*100)+'%';
+    dirty=true;
+    if(allDone){ anim=null; el_('btnAusschleifen').textContent='▶ Ausschleifen'; rebuild(); }
+  }
+  if(growJob){
+    const t0=performance.now();
+    while(!growJob.sim.done() && performance.now()-t0 < 26) growJob.sim.step(24);   // mehr Wachstum/Frame -> Baum viel schneller fertig
+    drawGrowProgress(growJob);
+    if(growJob.sim.done()){ const j=growJob; growJob=null; completeGrow(j); }
+    dirty=true;
+  }
+  if(dirty){ updateCam(); renderer.render(scene,camera); dirty=false; }
+  requestAnimationFrame(loop);
+}
+// Schnelle Linien-Vorschau während des Wachstums
+function drawGrowProgress(j){
+  const lp=[], lc=[], c=[0.42,0.55,0.66];
+  const addT=nodes=>{ for(const nd of nodes){ if(nd.parent>=0){ const a=nodes[nd.parent].pos,b=nd.pos; lp.push(a[0],a[1],a[2],b[0],b[1],b[2]); lc.push(c[0],c[1],c[2],c[0],c[1],c[2]); } } };
+  let cnt;
+  if(j.kind==='single'){ addT(j.sim.nodes); cnt=j.sim.nodes.length; }
+  else { addT(j.sim.nodesA); addT(j.sim.nodesB); cnt=j.sim.nodesA.length+j.sim.nodesB.length; }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(lp,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(lc,3));
+  treeMesh.visible=false; if(realMesh) realMesh.visible=false;
+  treeLines.geometry.dispose(); treeLines.geometry=g; treeLines.visible=true;
+  el_('sNodes').textContent = cnt+' (wächst…)';
+}
+function completeGrow(j){
+  const p=j.p;
+  if(j.kind==='single'){
+    const nodes=j.sim.nodes;
+    applyOrder(nodes,p.ordnung); smoothSkeleton(nodes,p.smooth,p.smoothS); assignMurray(nodes,j.t,p.dia,p.exp,p.mind);
+    finalizeTrees(p, [{nodes,tint:null}], `${j.sim.reached()} / ${j.sim.total}`, nodes[0].dia.toFixed(2));
+  } else {
+    const a=j.sim.nodesA, b=j.sim.nodesB;
+    applyOrder(a,p.ordnung); applyOrder(b,p.ordnung);
+    smoothSkeleton(a,p.smooth,p.smoothS); smoothSkeleton(b,p.smooth,p.smoothS);
+    assignMurray(a,j.ta,p.dia,p.exp,p.mind); assignMurray(b,j.tb,p.dia,p.exp,p.mind);
+    finalizeTrees(p, [{nodes:a,tint:TINT_A},{nodes:b,tint:TINT_B}], `A ${j.sim.reachedA()}/${j.sim.totalA} · B ${j.sim.reachedB()}/${j.sim.totalB}`, a[0].dia.toFixed(2));
+  }
+}
+function startAusschleifen(){
+  const p=params(); refreshLabels(p); BOX=p.box; target.set(BOX/2,BOX/2,BOX*0.42);
+  if(p.methode!=='fluss'){ el_('methode').value='fluss'; p.methode='fluss'; }   // Ausschleifen = Fluss-Methode
+  buildHelpers(p);
+  const sims=[];
+  if(p.dual){
+    const pFull={...p, zmin:0, zmax:100};
+    const ta=composeTargets(pFull, p.seed); lastTargets=ta; lastTargetsB=ta;
+    const sA=[BOX/2,BOX/2,0], sB=[BOX/2,BOX/2,BOX];
+    sims.push(makeFlowSim(sA, ta, p)); sims.push(makeFlowSim(sB, ta, p));
+  } else {
+    const t=composeTargets(p, p.seed); lastTargets=t; lastTargetsB=[];
+    const start=[clamp(p.sx,0,BOX),clamp(p.sy,0,BOX),clamp(p.sz,0,BOX)];
+    sims.push(makeFlowSim(start, t, p));
+  }
+  anim={ sims, speed:2, p };
+  el_('btnAusschleifen').textContent='⏸ Stopp';
+}
+
+// ---------- Parameter ----------
+const el_=id=>document.getElementById(id);
+// STL-Geometrie-Einbettung in Projektdatei (2026-07-12, *.bio Phase 3 — siehe
+// wissensbasis/28_projektdatei_bio_format_konzept_v1.md, dieselbe Technik wie Tessellation/Mattheck Phase 1/2,
+// hier aber ueber die bereits geparste Geometrie statt der Original-Datei-Rohdaten, siehe geomToB64()).
+function ab2b64(buf){ const bytes=new Uint8Array(buf); let bin=''; const CHUNK=0x8000;
+  for(let i=0;i<bytes.length;i+=CHUNK) bin+=String.fromCharCode.apply(null, bytes.subarray(i,i+CHUNK));
+  return btoa(bin); }
+function b642ab(b64){ const bin=atob(b64), bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
+// imports[i].geom ist eine THREE.BufferGeometry (nicht JSON-faehig). Anders als bei Tessellation/Mattheck
+// gibt es hier keine 1:1-Entsprechung Datei<->Import-Eintrag (loadStlFile() kann eine STL per splitComponents()
+// in mehrere imports aufteilen) — deshalb wird direkt die fertige Geometrie (Vertex-Positionen) serialisiert,
+// nicht die Original-Datei-Bytes. Normalen werden beim Wiederherstellen neu berechnet (computeVertexNormals),
+// wie beim urspruenglichen Import auch — verlustfrei fuer diese App (rendert ohnehin nur aus der Geometrie).
+function geomToB64(geom){ const pos=geom&&geom.attributes&&geom.attributes.position; if(!pos) return null;
+  return ab2b64(new Float32Array(pos.array).buffer); }
+function b64ToGeom(b64){ const arr=new Float32Array(b642ab(b64));
+  const g=new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr,3));
+  g.computeVertexNormals(); g.computeBoundingBox(); return g; }
+// Kraftfluss-Verzahnung: Mattheck-Kraftfluss-Linien als Wachstums-Ziele importieren
+el_('btnFlowImp').addEventListener('click',()=>el_('flowImpFile').click());
+// Baut flowTargets + sichtbare Linien aus flowRawLines nach Dichte/Auslass-Reglern.
+function applyFlow(){ if(!flowRawLines||!flowRawLines.length){ flowTargets=[]; flowVizGroup.clear(); return; }
+  const maxL=Math.max(0,(+((el_('flowLines')&&el_('flowLines').value)||0))|0);
+  const dens=Math.max(50,(+((el_('flowDens')&&el_('flowDens').value)||800))|0);
+  let lines=flowRawLines;
+  if(maxL>0 && flowRawLines.length>maxL){ const st=Math.ceil(flowRawLines.length/maxL); lines=[]; for(let i=0;i<flowRawLines.length;i+=st) lines.push(flowRawLines[i]); }
+  let all=[]; for(const L of lines) for(const p of L) all.push(p);
+  const stride=Math.max(1,Math.ceil(all.length/dens)); flowTargets=[];
+  for(let i=0;i<all.length;i+=stride) flowTargets.push({p:all[i].slice(), w:1});
+  flowVizGroup.clear(); const pos=[]; for(const L of lines) for(let n=0;n<L.length-1;n++) pos.push(L[n][0],L[n][1],L[n][2], L[n+1][0],L[n+1][1],L[n+1][2]);
+  const gg=new THREE.BufferGeometry(); gg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  flowVizGroup.add(new THREE.LineSegments(gg,new THREE.LineBasicMaterial({color:0x4fd1e0})));
+  if(el_('flowImpInfo')) el_('flowImpInfo').textContent='Kraftfluss: '+lines.length+' Linien → '+flowTargets.length+' Ziele.';
+}
+el_('flowImpFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=ev=>{ try{ const d=JSON.parse(ev.target.result), lines=d.lines||[];
+    let all=[]; for(const L of lines) for(const p of L) all.push(p);
+    if(!all.length){ el_('flowImpInfo').textContent='Keine Kraftfluss-Linien im JSON.'; return; }
+    flowRawLines=lines;
+    let mx=0,root=all[0]; for(const p of all){ mx=Math.max(mx,p[0],p[1],p[2]); if(p[0]<root[0]) root=p; }
+    if(el_('box')){ const cap=+el_('box').max||120; el_('box').value=Math.min(Math.max(Math.ceil(mx*1.03),+el_('box').value),cap); if(el_('vBox'))el_('vBox').textContent=el_('box').value; }
+    ['sx','sy','sz'].forEach((id,k)=>{ if(el_(id)){ el_(id).value=Math.round(root[k]); const vb=el_('v'+id.toUpperCase()); if(vb)vb.textContent=el_(id).value; } });
+    if(el_('methode')){ el_('methode').value='wachstum'; }
+    applyFlow(); rebuild();
+  }catch(err){ el_('flowImpInfo').textContent='Kraftfluss-Fehler: '+err.message; console.warn(err); } };
+  rd.readAsText(f); e.target.value=''; });
+el_('btnFlowClr').addEventListener('click',()=>{ flowRawLines=null; flowTargets=[]; flowVizGroup.clear(); el_('flowImpInfo').textContent='Kraftfluss-Ziele geleert.'; rebuild(); });
+el_('flowDens') && el_('flowDens').addEventListener('change',()=>{ el_('vFlowDens').textContent=el_('flowDens').value; if(flowRawLines){ applyFlow(); rebuild(); } });
+el_('flowLines') && el_('flowLines').addEventListener('change',()=>{ el_('vFlowLines').textContent=(+el_('flowLines').value===0?'alle':el_('flowLines').value); if(flowRawLines){ applyFlow(); rebuild(); } });
+el_('flowFollow') && el_('flowFollow').addEventListener('change',()=>{ el_('vFlowFollow').textContent=(+el_('flowFollow').value).toFixed(2); rebuild(); });
+
+// ---------- Äste vernetzen (Blattadern) + Enden verbinden ----------
+function cylTri(a,b,r,seg,out){ const ax=b[0]-a[0],ay=b[1]-a[1],az=b[2]-a[2], L=Math.hypot(ax,ay,az); if(L<1e-6)return;
+  const dz=[ax/L,ay/L,az/L], up=Math.abs(dz[0])<0.9?[1,0,0]:[0,1,0];
+  let vx=[dz[1]*up[2]-dz[2]*up[1],dz[2]*up[0]-dz[0]*up[2],dz[0]*up[1]-dz[1]*up[0]]; const vl=Math.hypot(vx[0],vx[1],vx[2])||1; vx=[vx[0]/vl,vx[1]/vl,vx[2]/vl];
+  const wx=[dz[1]*vx[2]-dz[2]*vx[1],dz[2]*vx[0]-dz[0]*vx[2],dz[0]*vx[1]-dz[1]*vx[0]];
+  const r0=[],r1=[]; for(let s=0;s<seg;s++){ const th=2*Math.PI*s/seg,c=Math.cos(th)*r,sn=Math.sin(th)*r, ox=vx[0]*c+wx[0]*sn,oy=vx[1]*c+wx[1]*sn,oz=vx[2]*c+wx[2]*sn;
+    r0.push([a[0]+ox,a[1]+oy,a[2]+oz]); r1.push([b[0]+ox,b[1]+oy,b[2]+oz]); }
+  const P=p=>out.push(p[0],p[1],p[2]);
+  for(let s=0;s<seg;s++){ const t=(s+1)%seg; P(r0[s]);P(r1[s]);P(r1[t]); P(r0[s]);P(r1[t]);P(r0[t]); } }
+function buildCrossLinks(){
+  netzGroup.clear(); crossVeins=[];
+  if(!el_('netzOn')||!el_('netzOn').checked||!lastTrees||!lastTrees.length){ dirty=true; if(el_('netzInfo'))el_('netzInfo').textContent='aus.'; return; }
+  const ratio=clamp(+el_('netzRatio').value,0,1), distInf=clamp(+el_('endConnect').value,0,1), curve=clamp(+el_('netzCurve').value,0,1);
+  if(distInf<=0){ if(el_('netzInfo'))el_('netzInfo').textContent='Distanz-Einfluss 0 → keine Verbindung.'; dirty=true; return; }
+  // Blatt-Enden mit Astrichtung (Wachstums-Tangente) sammeln
+  const L=[]; lastTrees.forEach((t,ti)=>{ const nd=t.nodes; for(let i=0;i<nd.length;i++){ if(!nd[i].leaf)continue; const par=nd[i].parent; const dir=par>=0?norm(sub(nd[i].pos,nd[par].pos)):[0,0,1];
+    L.push({pos:nd[i].pos, dia:Math.max(nd[i].dia||1,0.3), dir, ti, i}); } });
+  const maxD=distInf*BOX*0.7, maxD2=maxD*maxD, seen=new Set(), key=(a,b)=>a<b?a+'_'+b:b+'_'+a, out=[];
+  for(let a=0;a<L.length;a++){ const A=L[a]; let best=Infinity,bj=-1;
+    for(let b=0;b<L.length;b++){ if(b===a)continue; const B=L[b]; if(A.ti===B.ti && Math.abs(A.i-B.i)<2)continue; const dd=distSq(A.pos,B.pos); if(dd>1e-4 && dd<best){best=dd;bj=b;} }
+    if(bj<0||best>maxD2) continue; const kk=key(a,bj); if(seen.has(kk))continue; seen.add(kk);
+    splineConn(A,L[bj],ratio,curve,out); }
+  if(out.length){ const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(out,3)); g.computeVertexNormals(); netzGroup.add(new THREE.Mesh(g,netzMat)); }
+  if(el_('netzInfo'))el_('netzInfo').textContent=seen.size+' Enden verbunden (Spline).'; dirty=true;
+}
+// Kubische Hermite-Ader A->B; Tangenten = Astrichtungen (Wachstumsregel), verjüngt.
+function splineConn(A,B,ratio,curve,out){
+  const P0=A.pos,P1=B.pos, d=Math.hypot(P1[0]-P0[0],P1[1]-P0[1],P1[2]-P0[2]), sc=d*(0.15+0.85*curve);
+  const m0=[A.dir[0]*sc,A.dir[1]*sc,A.dir[2]*sc], m1=[-B.dir[0]*sc,-B.dir[1]*sc,-B.dir[2]*sc];
+  const K=12; let prev=null; const pts=[], dia=[];
+  for(let s=0;s<=K;s++){ const t=s/K, t2=t*t, t3=t2*t, h00=2*t3-3*t2+1, h10=t3-2*t2+t, h01=-2*t3+3*t2, h11=t3-t2;
+    const p=[ h00*P0[0]+h10*m0[0]+h01*P1[0]+h11*m1[0], h00*P0[1]+h10*m0[1]+h01*P1[1]+h11*m1[1], h00*P0[2]+h10*m0[2]+h01*P1[2]+h11*m1[2] ];
+    const dm=A.dia+(B.dia-A.dia)*t, taper=1-0.35*4*t*(1-t), rr=Math.max(ratio*0.5*dm*taper,0.12);
+    if(prev){ cylTri(prev,p,rr,6,out); }
+    prev=p; pts.push(p); dia.push(rr*2); }
+  // Für den Kern: Kette ab Startknoten A (existiert) über die Punkte s=1..K (letzter = B, überlappt -> verschmilzt)
+  crossVeins.push({ ti:A.ti, start:A.i, pts:pts.slice(1), dia:dia.slice(1) });
+}
+el_('netzOn') && el_('netzOn').addEventListener('change',buildCrossLinks);
+el_('btnNetz') && el_('btnNetz').addEventListener('click',buildCrossLinks);
+[['netzRatio','vNetzRatio',2],['netzCurve','vNetzCurve',2],['endConnect','vEndConnect',2]].forEach(([id,vid,dp])=>{ const e=el_(id); if(e) e.addEventListener('change',()=>{ if(el_(vid))el_(vid).textContent=(+e.value).toFixed(dp); buildCrossLinks(); }); });
+el_('btnBauImp').addEventListener('click',()=>el_('bauImpFile').click());
+el_('bauImpFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(f) loadBauStl(f); e.target.value=''; });
+el_('bauOpa') && el_('bauOpa').addEventListener('change',()=>{ el_('vBauOpa').textContent=(+el_('bauOpa').value).toFixed(2); rebuildImpGroup(); dirty=true; });
+el_('modul') && el_('modul').addEventListener('change',e=>{ if(e.target.value==='tess') location.href='tessellation.html'; else if(e.target.value==='matt') location.href='mattheck.html'; });
+const sliders=['N','seed','zmin','zmax','box','sx','sy','sz','step','infl','kill','jitter','smooth','smoothS','maxit','dia','exp','mind','diasmooth','volratio','mindist','clr','sepgap','connr','ores','oiter','orate','ogam','oprune','omaxr','ojit','oglatt','ofillet','ordnung','tlev','tchild','tang','tangvar','tratio','tlenvar','tlen','ttwist','ttrop','tnat','wand','voxel','filletmm','floweq','wideneq','flanschdia','flanschdicke','flanschwx','flanschwy','pbar','bushiness'];
+const selects=['pattern','weight','shape','methode','darstellung','trule','tsym','medium'];
+const checks=['quality','dual','collide','connect','hollow','zeigeZiele','volclamp','nurManuell','flansch','physviz','gravity','auslasswerte','autoRobust'];
+let obstacles=[];
+let attractors=[];
+
+function params(){ return {
+  N:+el_('N').value, seed:+el_('seed').value, pattern:el_('pattern').value, methode:el_('methode').value, darstellung:el_('darstellung').value,
+  zmin:+el_('zmin').value, zmax:+el_('zmax').value, weight:el_('weight').value,
+  box:+el_('box').value, shape:el_('shape').value, sx:+el_('sx').value, sy:+el_('sy').value, sz:+el_('sz').value,
+  step:+el_('step').value, infl:+el_('infl').value, kill:+el_('kill').value, jitter:+el_('jitter').value,
+  smooth:+el_('smooth').value, smoothS:+el_('smoothS').value, maxit:+el_('maxit').value,
+  dia:+el_('dia').value, exp:+el_('exp').value, mind:+el_('mind').value, diasmooth:+el_('diasmooth').value, volratio:+el_('volratio').value, volclamp:el_('volclamp').checked, flowEq:+el_('floweq').value, widenEq:+el_('wideneq').value,
+  quality:el_('quality').checked, dual:el_('dual').checked, mindist:+el_('mindist').value,
+  collide:el_('collide').checked, sepgap:+el_('sepgap').value,
+  connect:el_('connect').checked, connectR:+el_('connr').value,
+  opt_res:+el_('ores').value, opt_iter:+el_('oiter').value, opt_rate:+el_('orate').value, opt_gam:+el_('ogam').value,
+  opt_prune:+el_('oprune').value, opt_maxr:+el_('omaxr').value, opt_jit:+el_('ojit').value,
+  opt_glatt:+el_('oglatt').value, opt_fillet:+el_('ofillet').value,
+  ordnung:+el_('ordnung').value,
+  t_lev:+el_('tlev').value, t_child:+el_('tchild').value, t_ang:+el_('tang').value, t_angvar:+el_('tangvar').value,
+  t_ratio:+el_('tratio').value, t_lenvar:+el_('tlenvar').value, t_len:+el_('tlen').value, t_twist:+el_('ttwist').value,
+  t_trop:+el_('ttrop').value, t_nat:+el_('tnat').value, t_rule:el_('trule').value, t_sym:el_('tsym').value,
+  hollow:el_('hollow').checked, wand:+el_('wand').value,
+  flansch:el_('flansch').checked, flanschDia:+el_('flanschdia').value, flanschThk:+el_('flanschdicke').value,
+  flanschWx:+el_('flanschwx').value, flanschWy:+el_('flanschwy').value,
+  medium:el_('medium').value, pbar:+el_('pbar').value, physviz:el_('physviz').checked, gravity:el_('gravity').checked, auslasswerte:el_('auslasswerte').checked,
+  voxel:+el_('voxel').value, fillet_mm:+el_('filletmm').value,
+  clearance:+el_('clr').value, obstacles:obstacles.map(o=>({...o})) }; }
+
+function refreshLabels(p){
+  el_('vN').textContent=p.N; el_('vSeed').textContent=p.seed;
+  el_('vZmin').textContent=p.zmin; el_('vZmax').textContent=p.zmax;
+  el_('vBox').textContent=p.box; el_('vSx').textContent=p.sx; el_('vSy').textContent=p.sy; el_('vSz').textContent=p.sz;
+  el_('vStep').textContent=p.step.toFixed(1); el_('vInfl').textContent=p.infl; el_('vKill').textContent=p.kill.toFixed(1);
+  el_('vJit').textContent=p.jitter.toFixed(2); el_('vSmooth').textContent=p.smooth; el_('vSmoothS').textContent=p.smoothS.toFixed(2);
+  el_('vMaxIt').textContent=p.maxit; el_('vDia').textContent=p.dia.toFixed(1); el_('vExp').textContent=p.exp.toFixed(1);
+  el_('vMinD').textContent=p.mind.toFixed(1); el_('vDiaS').textContent=p.diasmooth; el_('vVolR').textContent=p.volratio.toFixed(2); el_('vFloweq').textContent=p.flowEq.toFixed(2); el_('vWideneq').textContent=p.widenEq.toFixed(2); el_('vMin').textContent=p.mindist.toFixed(1); el_('vClr').textContent=p.clearance.toFixed(1);
+  el_('vSep').textContent=p.sepgap.toFixed(1);
+  el_('vConnR').textContent=p.connectR.toFixed(1);
+  el_('vOres').textContent=p.opt_res; el_('vOiter').textContent=p.opt_iter; el_('vOrate').textContent=p.opt_rate.toFixed(2);
+  el_('vOgam').textContent=p.opt_gam.toFixed(1); el_('vOprune').textContent=p.opt_prune.toFixed(3);
+  el_('vOmaxr').textContent=p.opt_maxr.toFixed(1); el_('vOjit').textContent=p.opt_jit.toFixed(2);
+  el_('vOglatt').textContent=p.opt_glatt; el_('vOfillet').textContent=p.opt_fillet.toFixed(1);
+  el_('vOrdnung').textContent=p.ordnung.toFixed(2);
+  el_('vTlev').textContent=p.t_lev; el_('vTchild').textContent=p.t_child; el_('vTang').textContent=p.t_ang;
+  el_('vTangvar').textContent=p.t_angvar; el_('vTratio').textContent=p.t_ratio.toFixed(2);
+  el_('vTlenvar').textContent=p.t_lenvar.toFixed(2); el_('vTlen').textContent=p.t_len;
+  el_('vTtwist').textContent=p.t_twist; el_('vTtrop').textContent=p.t_trop.toFixed(2); el_('vTnat').textContent=p.t_nat.toFixed(2);
+  el_('vWand').textContent=p.wand.toFixed(1);
+  el_('vFlanschdia').textContent=p.flanschDia; el_('vFlanschdicke').textContent=p.flanschThk.toFixed(1);
+  el_('vFlanschwx').textContent=p.flanschWx; el_('vFlanschwy').textContent=p.flanschWy;
+  el_('vPbar').textContent=p.pbar.toFixed(1);
+  el_('vVoxel').textContent=p.voxel.toFixed(2); el_('vFilletmm').textContent=p.fillet_mm.toFixed(1);
+}
+
+let lastTargets=[], lastTargetsB=[], lastTrees=[];
+const TINT_A=new THREE.Color(0xe0664f), TINT_B=new THREE.Color(0x4f9be0);
+
+// Blendet Abschnitte/Regler je nach Methode & Optionen ein/aus.
+function setVis(id, show){ const e=el_(id); if(e) e.style.display = show ? '' : 'none'; }
+function updateVisibility(p){
+  const m=p.methode;
+  setVis('secTemplate', m==='template');
+  setVis('secWachstum', m==='wachstum');
+  setVis('secOptim',    m==='fluss');
+  setVis('rowAusschleifen', m==='fluss');
+  setVis('secZielwolke', m!=='template');     // Template braucht keine Zielwolke
+  setVis('secAttr',      m!=='template');
+  setVis('ctrlVolratio', p.volclamp);
+  setVis('ctrlWand',    p.hollow);
+  setVis('ctrlMindist', p.dual);
+  setVis('ctrlConnect', p.dual);
+  setVis('ctrlConnR',   p.dual && p.connect);
+  setVis('ctrlSep',     p.collide);
+}
+
+// Post-Wachstum: Durchmesser-Pipeline, Kollision, Rendering, Statistik + Analyse.
+function finalizeTrees(p, trees, reachedTxt, rootTxt){
+  for(const tr of trees) smoothDiameters(tr.nodes, p.diasmooth, 0.5);
+  if(p.flowEq>0) for(const tr of trees) equalizeFlow(tr.nodes, p.flowEq);   // 1: dicke Enden drosseln
+  if(p.widenEq>0) for(const tr of trees) widenThinChannels(tr.nodes, p.widenEq);   // 2: dünne Kanäle aufweiten
+  if(p.volclamp) for(const tr of trees) clampBranchRatio(tr.nodes, p.volratio);
+  if(p.collide) separateTrees(trees, p.sepgap, 10, {shape:p.shape, box:BOX});
+  for(const tr of trees) projectObstacles(tr.nodes, p.obstacles, p.clearance);
+  for(const tr of trees) projectImportHindernis(tr.nodes);
+  if(p.dual && p.connect && trees.length===2){
+    const c=connectAllLeaves(trees[0].nodes, trees[1].nodes, p.connectR);
+    reachedTxt += ` · ${c.connections} verb., ${c.dead} Sackg.`;
+  }
+  lastTrees=trees;
+  let nodesN=0, segsN=0, dMinAll=Infinity;
+  for(const tr of trees){ nodesN+=tr.nodes.length; for(const nd of tr.nodes){ if(nd.parent>=0) segsN++; if(nd.leaf && nd.dia<dMinAll) dMinAll=nd.dia; } }
+  const leafTxt = isFinite(dMinAll)?dMinAll.toFixed(2):'–';
+
+  assignFlanges(trees, p);   // Standard-, Pro-Punkt- und Einlassflansche zuweisen
+
+  // Physik-Simulation (Hagen-Poiseuille): pro Baum lösen, Druck/Fluss + Reynolds.
+  physColorMode = p.physviz;
+  { const med=mediumProps(p.medium), pIn=Math.max(p.pbar,0.001)*1e5;
+    const Cd=0.7, vBern=Math.sqrt(2*pIn/med.rho);   // Bernoulli-Ausströmgeschwindigkeit √(2ΔP/ρ)
+    let qTot=0, reMax=0, capped=false; const outFlows=[], outPts=[];
+    for(const tr of trees){
+      const nodes=tr.nodes; const sol=solvePhysics(nodes, med.mu, pIn);
+      const zRoot=nodes[0].pos[2], pmax=pIn||1;
+      for(let i=0;i<nodes.length;i++){
+        let Pd=sol.P[i]; if(p.gravity) Pd += med.rho*9.81*(zRoot-nodes[i].pos[2])*1e-3;
+        nodes[i]._pt = clamp(Pd/pmax, 0, 1);
+      }
+      // Auslässe Bernoulli-deckeln, dann Flüsse konservativ nach oben summieren
+      // (parent-vor-kind-Reihenfolge -> Kinder haben höheren Index, rückwärts iterieren).
+      const Qeff=new Array(nodes.length).fill(0);
+      for(let i=nodes.length-1;i>=1;i--){
+        if(sol.ch[i].length===0){                  // Auslass
+          const D=Math.max(nodes[i].dia*1e-3,1e-5), A=Math.PI*D*D/4;
+          let Q=Math.abs(sol.Q[i]); const Qb=Cd*A*vBern;   // laminarer Fluss bei hohem Re
+          if(Q>Qb){ Q=Qb; capped=true; }                    // unphysikalisch -> deckeln
+          Qeff[i]=Q; outFlows.push(Q); outPts.push({pos:nodes[i].pos, q:Q}); qTot+=Q;
+        }
+        Qeff[nodes[i].parent]+=Qeff[i];
+      }
+      for(let i=1;i<nodes.length;i++){
+        const D=Math.max(nodes[i].dia*1e-3,1e-5), A=Math.PI*D*D/4;
+        const v=Qeff[i]/A, Re=med.rho*v*D/med.mu; if(Re>reMax) reMax=Re;
+      }
+    }
+    const fmtQ=q=>{ const m=q*6e7; return m>=1000 ? (m/1000).toFixed(2)+' L/min' : (m>=1?m.toFixed(1)+' mL/min':(m*1000).toFixed(0)+' µL/min'); };
+    el_('pQ').textContent=fmtQ(qTot)+(capped?'  (Bernoulli-begrenzt)':'');
+    if(outFlows.length){ outFlows.sort((a,b)=>a-b); el_('pQo').textContent=fmtQ(outFlows[0])+' … '+fmtQ(outFlows[outFlows.length-1]); } else el_('pQo').textContent='–';
+    el_('pRe').textContent=reMax.toFixed(0)+(reMax>2300?' (turbulent!)':' (laminar)');
+    updatePhysLabels(p.auslasswerte?outPts:null, fmtQ);
+  }
+
+  if(realMesh) realMesh.visible=false; treeMesh.visible=true;
+  if(p.darstellung==='schnell'){
+    const f=bakeFast(trees);
+    treeMesh.geometry.dispose(); treeMesh.geometry=f.geo;
+    treeLines.geometry.dispose(); treeLines.geometry=f.lg; treeLines.visible=true;
+  } else {
+    const {geo}=bakeTreesToGeometry(trees, p.quality);
+    treeMesh.geometry.dispose(); treeMesh.geometry=geo; treeLines.visible=false;
+  }
+  updateTargetPoints();
+
+  el_('sNodes').textContent=nodesN; el_('sSeg').textContent=segsN;
+  el_('sReached').textContent=reachedTxt; el_('sRoot').textContent=rootTxt; el_('sLeaf').textContent=leafTxt;
+  const fa=analyzeFlow(trees);
+  el_('aLeaves').textContent=fa.leaves;
+  el_('aD3').textContent=`${(fa.d3mean*100).toFixed(1)}% (gewichtet)`;
+  el_('aR').textContent = fa.rspread>0 ? `${fa.rspread.toFixed(1)}×  (1.0 = perfekt ausgeglichen)` : '–';
+  el_('aVol').textContent = fa.vol.toLocaleString('de',{maximumFractionDigits:0});
+  renderFlangeMarkers(trees); renderFlangeList();
+  dirty=true;
+}
+
+function rebuild(){
+  const p=params();
+  refreshLabels(p); updateVisibility(p);
+  if(typeof netzGroup!=='undefined' && netzGroup){ netzGroup.clear(); crossVeins=[]; }   // Querverbindungen bei Neuaufbau leeren
+  BOX=p.box; target.set(BOX/2, BOX/2, BOX*0.42);
+  impClearance=p.clearance;
+  const o={ step:p.step, infl:p.infl, kill:p.kill, maxIter:p.maxit, jitter:p.jitter,
+            rng:mulberry32((p.seed*97+13)>>>0), obstacles:p.obstacles, clearance:p.clearance, blocked: importBlocked };
+  if(flowTargets.length){ const fi=el_('flowFollow')?clamp(+el_('flowFollow').value,0,1):0;   // stärker den Linien folgen
+    o.infl*=(1-0.7*fi); o.kill=Math.max(o.kill*(1-0.7*fi), o.step*0.6); o.step=Math.max(o.step*(1-0.4*fi),0.5); o.jitter*=(1-0.8*fi); }
+  buildHelpers(p); updateStartHandle(p); renderOutliner();
+  growJob=null;   // laufendes Wachstum abbrechen (stale)
+
+  if(p.dual){
+    const pFull={...p, zmin:0, zmax:100};
+    const ta=composeTargets(pFull, p.seed);
+    const sA=[BOX/2,BOX/2,0], sB=[BOX/2,BOX/2,BOX];
+    if(p.methode==='fluss' || p.methode==='template'){
+      let d, tb=ta;
+      if(p.methode==='fluss'){ const fa=buildFlowTree(sA,ta,p), fb=buildFlowTree(sB,ta,p);
+        d={nodesA:fa.nodes,nodesB:fb.nodes,reachedA:fa.reached,totalA:fa.total,reachedB:fb.reached,totalB:fb.total}; }
+      else { const fa=buildTemplateTree(sA,p,[0,0,1]), fb=buildTemplateTree(sB,p,[0,0,-1]);
+        d={nodesA:fa.nodes,nodesB:fb.nodes,reachedA:fa.reached,totalA:fa.total,reachedB:fb.reached,totalB:fb.total}; }
+      lastTargets=ta; lastTargetsB=tb; updateTargetPoints();
+      applyOrder(d.nodesA,p.ordnung); applyOrder(d.nodesB,p.ordnung);
+      smoothSkeleton(d.nodesA,p.smooth,p.smoothS); smoothSkeleton(d.nodesB,p.smooth,p.smoothS);
+      assignMurray(d.nodesA,ta,p.dia,p.exp,p.mind); assignMurray(d.nodesB,tb,p.dia,p.exp,p.mind);
+      finalizeTrees(p, [{nodes:d.nodesA,tint:TINT_A},{nodes:d.nodesB,tint:TINT_B}],
+        `A ${d.reachedA}/${d.totalA} · B ${d.reachedB}/${d.totalB}`, d.nodesA[0].dia.toFixed(2));
+    } else {
+      const tb = p.connect ? ta.map(t=>({p:t.p.slice(), w:t.w})) : makeTargets(pFull, p.seed+50);
+      lastTargets=ta; lastTargetsB=tb; updateTargetPoints();
+      if(el_('autoRobust')&&el_('autoRobust').checked) autoTune(o, ta.concat(tb));
+      growJob={ kind:'dual', sim:makeGrowDoubleSim(ta,sA,tb,sB,o,p.mindist), p, ta, tb };
+    }
+  } else {
+    const start=[clamp(p.sx,0,BOX), clamp(p.sy,0,BOX), clamp(p.sz,0,BOX)];
+    if(p.methode==='template'){
+      const sc=buildTemplateTree(start, p); lastTargets=[]; lastTargetsB=[]; updateTargetPoints();
+      applyOrder(sc.nodes,p.ordnung); smoothSkeleton(sc.nodes,p.smooth,p.smoothS); assignMurray(sc.nodes,[],p.dia,p.exp,p.mind);
+      finalizeTrees(p, [{nodes:sc.nodes,tint:null}], `${sc.reached} / ${sc.total}`, sc.nodes[0].dia.toFixed(2));
+    } else if(p.methode==='fluss'){
+      const t=composeTargets(p, p.seed); const sc=buildFlowTree(start, t, p); lastTargets=t; lastTargetsB=[]; updateTargetPoints();
+      applyOrder(sc.nodes,p.ordnung); smoothSkeleton(sc.nodes,p.smooth,p.smoothS); assignMurray(sc.nodes,t,p.dia,p.exp,p.mind);
+      finalizeTrees(p, [{nodes:sc.nodes,tint:null}], `${sc.reached} / ${sc.total}`, sc.nodes[0].dia.toFixed(2));
+    } else {
+      const t=composeTargets(p, p.seed); lastTargets=t; lastTargetsB=[]; updateTargetPoints();
+      if(el_('autoRobust')&&el_('autoRobust').checked) autoTune(o, t);
+      growJob={ kind:'single', sim:makeGrowSim(t,o,start), p, t };
+    }
+  }
+  dirty=true;
+}
+
+// ---------- Hindernis-Liste (dynamisch) ----------
+function renderObsList(){
+  const box=el_('obsList'); box.innerHTML='';
+  obstacles.forEach((ob,idx)=>{
+    const row=document.createElement('div'); row.className='obsrow';
+    row.innerHTML=`<div class="obshead">
+        <select data-k="shape"><option value="sphere">Kugel</option><option value="box">Box</option></select>
+        <button class="mini" data-del="${idx}">✕</button></div>
+      <div class="grid">
+        <div><label>X</label><input type="number" data-k="x" value="${ob.x}"></div>
+        <div><label>Y</label><input type="number" data-k="y" value="${ob.y}"></div>
+        <div><label>Z</label><input type="number" data-k="z" value="${ob.z}"></div>
+        <div><label>Größe</label><input type="number" data-k="size" value="${ob.size}"></div>
+      </div>`;
+    row.querySelector('[data-k="shape"]').value=ob.shape;
+    row.querySelectorAll('[data-k]').forEach(inp=>{
+      inp.addEventListener('change',()=>{ const k=inp.getAttribute('data-k'); ob[k]= k==='shape'?inp.value:+inp.value; rebuildObsGroup(); rebuild(); scheduleHistory(); });
+    });
+    row.querySelector('[data-del]').addEventListener('click',()=>{
+      obstacles.splice(idx,1);
+      if(selKind==='obs'){
+        if(selObs===idx){ selKind=null; selObs=-1; tControls.detach(); }
+        else if(selObs>idx) selObs--;
+      }
+      renderObsList(); rebuildObsGroup(); rebuild(); scheduleHistory();
+    });
+    box.appendChild(row);
+  });
+  markListSelection();
+}
+el_('btnAddObs').addEventListener('click',()=>{ obstacles.push({shape:'sphere', x:Math.round(BOX/2), y:Math.round(BOX/2), z:Math.round(BOX/2), size:8}); renderObsList(); selObs=obstacles.length-1; rebuildObsGroup(); selectObs(selObs); rebuild(); scheduleHistory(); });
+el_('btnAddBox').addEventListener('click',()=>{ obstacles.push({shape:'box', x:Math.round(BOX/2), y:Math.round(BOX/2), z:Math.round(BOX/2), size:7}); renderObsList(); selObs=obstacles.length-1; rebuildObsGroup(); selectObs(selObs); rebuild(); scheduleHistory(); });
+
+// ---------- Attraktor-Liste (dynamisch) ----------
+function renderAttrList(){
+  const box=el_('attrList'); box.innerHTML='';
+  attractors.forEach((a,idx)=>{
+    const row=document.createElement('div'); row.className='obsrow';
+    row.innerHTML=`<div class="obshead">
+        <select data-k="shape"><option value="sphere">Kugel</option><option value="box">Box</option></select>
+        <button class="mini" data-del="${idx}">✕</button></div>
+      <div class="grid">
+        <div><label>X</label><input type="number" data-k="x" value="${a.x}"></div>
+        <div><label>Y</label><input type="number" data-k="y" value="${a.y}"></div>
+        <div><label>Z</label><input type="number" data-k="z" value="${a.z}"></div>
+        <div><label>Größe</label><input type="number" data-k="size" value="${a.size}"></div>
+        <div><label>Anzahl</label><input type="number" data-k="count" value="${a.count}"></div>
+        <div><label>Gewicht</label><input type="number" data-k="weight" step="0.1" value="${a.weight}"></div>
+      </div>`;
+    row.querySelector('[data-k="shape"]').value=a.shape;
+    row.querySelectorAll('[data-k]').forEach(inp=>{
+      inp.addEventListener('change',()=>{ const k=inp.getAttribute('data-k'); a[k]= k==='shape'?inp.value:+inp.value; rebuildAttrGroup(); rebuild(); scheduleHistory(); });
+    });
+    row.querySelector('[data-del]').addEventListener('click',()=>{
+      attractors.splice(idx,1);
+      if(selKind==='attr'){
+        if(selAttr===idx){ selKind=null; selAttr=-1; tControls.detach(); }
+        else if(selAttr>idx) selAttr--;
+      }
+      renderAttrList(); rebuildAttrGroup(); rebuild(); scheduleHistory();
+    });
+    box.appendChild(row);
+  });
+  markListSelection();
+}
+el_('btnAddAttr').addEventListener('click',()=>{ attractors.push({shape:'sphere', x:Math.round(BOX/2), y:Math.round(BOX/2), z:Math.round(BOX*0.8), size:10, count:25, weight:1}); renderAttrList(); selAttr=attractors.length-1; rebuildAttrGroup(); selectAttr(selAttr); rebuild(); scheduleHistory(); });
+el_('btnAddAttrBox').addEventListener('click',()=>{ attractors.push({shape:'box', x:Math.round(BOX/2), y:Math.round(BOX/2), z:Math.round(BOX*0.8), size:9, count:25, weight:1}); renderAttrList(); selAttr=attractors.length-1; rebuildAttrGroup(); selectAttr(selAttr); rebuild(); scheduleHistory(); });
+el_('btnMove').addEventListener('click',()=>setGizmoMode('translate'));
+el_('btnRotate').addEventListener('click',()=>setGizmoMode('rotate'));
+el_('btnScale').addEventListener('click',()=>setGizmoMode('scale'));
+el_('stlFile').addEventListener('change', e=>{ const f=e.target.files&&e.target.files[0]; if(f) loadStlFile(f); e.target.value=''; });
+el_('btnAddTarget').addEventListener('click',()=>{
+  placeMode=!placeMode;
+  el_('btnAddTarget').classList.toggle('on', placeMode);
+  el_('btnAddTarget').textContent = placeMode ? '✓ in Szene klicken…' : '＋ Zielpunkt setzen';
+  renderer.domElement.style.cursor = placeMode ? 'crosshair' : '';
+});
+el_('btnMaterialize').addEventListener('click',()=>{
+  const p=params(); const pFull = p.dual ? {...p, zmin:0, zmax:100} : p;
+  const gen = applyImportRegion(makeTargets(pFull, p.seed)).concat(attractorTargets(p.seed)).concat(importTargets(p.seed));
+  for(const t of gen) manualTargets.push({x:+t.p[0].toFixed(2), y:+t.p[1].toFixed(2), z:+t.p[2].toFixed(2), w:t.w||1});
+  el_('nurManuell').checked=true;
+  el_('btnMaterialize').textContent=`✓ ${manualTargets.length} Punkte`; setTimeout(()=>el_('btnMaterialize').textContent='Ziele → Punkte',2000);
+  rebuildMtGroup(); rebuild(); scheduleHistory();
+});
+el_('btnClearTargets').addEventListener('click',()=>{
+  manualTargets=[]; selKind = selKind==='mtgt'?null:selKind; selMt=-1; tControls.detach();
+  rebuildMtGroup(); rebuild(); scheduleHistory();
+});
+el_('btnFlangeMode').addEventListener('click',()=>{
+  flangeMode=!flangeMode;
+  el_('btnFlangeMode').classList.toggle('on', flangeMode);
+  el_('btnFlangeMode').textContent = flangeMode ? '✓ Auslass anklicken…' : '⬤ Flansch-Modus (Auslässe zeigen)';
+  renderFlangeMarkers(lastTrees);
+});
+addEventListener('keydown', e=>{
+  const t=e.target; if(t && (t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.tagName==='SELECT')) return;
+  if(e.key==='Delete' || e.key==='Backspace'){
+    if(selKind==='flange' && selFl>=0){ e.preventDefault(); flanges.splice(selFl,1); selKind=null; selFl=-1; el_('selProps').innerHTML=''; refreshFlanges(); renderOutliner(); scheduleHistory(); }
+    else if(selKind==='mtgt' && selMt>=0){ e.preventDefault(); manualTargets.splice(selMt,1); selKind=null; selMt=-1; tControls.detach(); rebuildMtGroup(); rebuild(); scheduleHistory(); }
+  } else if(e.key==='Escape'){
+    if(placeMode) el_('btnAddTarget').click(); else if(flangeMode) el_('btnFlangeMode').click(); else deselectAll();
+  }
+});
+el_('btnAusschleifen').addEventListener('click',()=>{
+  if(anim){ anim=null; el_('btnAusschleifen').textContent='▶ Ausschleifen'; rebuild(); }   // Stopp -> finalen Baum bauen
+  else startAusschleifen();
+});
+
+// ---------- Undo / Redo / Settings speichern ----------
+const SKEY='lattice-fraktal-settings';
+let history=[], hidx=-1, applying=false, histDeb=null;
+function snapshot(){
+  const s={};
+  sliders.forEach(id=> s[id]=el_(id).value);
+  selects.forEach(id=> s[id]=el_(id).value);
+  checks.forEach(id=> s[id]=el_(id).checked);
+  s.obstacles=obstacles.map(o=>({...o}));
+  s.attractors=attractors.map(o=>({...o}));
+  s.manualTargets=manualTargets.map(o=>({...o}));
+  s.inletFlange={...inletFlange};
+  s.flanges=flanges.map(o=>({...o}));
+  // imports (STL-Importe: Bauraum/Referenz/Oberflaeche/Volumen-Ziele) — bisher komplett vom Speichern
+  // ausgeschlossen (Luecke, gefunden 2026-07-12, *.bio Phase 3): weder Undo/Redo noch "Speichern" hielten
+  // importierte STLs. geom (BufferGeometry) wird durch die Vertex-Positionen als Base64 ersetzt (geomToB64()).
+  s.imports=imports.map(im=>{ const {geom,...rest}=im; return {...rest, _geomB64:geomToB64(geom)}; });
+  return s;
+}
+function applyState(s){
+  applying=true;
+  sliders.forEach(id=>{ if(id in s) el_(id).value=s[id]; });
+  syncNumbers();
+  selects.forEach(id=>{ if(id in s) el_(id).value=s[id]; });
+  checks.forEach(id=>{ if(id in s) el_(id).checked=s[id]; });
+  obstacles=(s.obstacles||[]).map(o=>({...o}));
+  attractors=(s.attractors||[]).map(o=>({...o}));
+  manualTargets=(s.manualTargets||[]).map(o=>({...o}));
+  inletFlange = s.inletFlange ? {fl:false,fd:6,ft:1.5,fax:0,fay:0, ...s.inletFlange} : {fl:false,fd:6,ft:1.5,fax:0,fay:0};
+  flanges=(s.flanges||[]).map(o=>({...o}));
+  imports=(s.imports||[]).map(im=>{ const {_geomB64,...rest}=im; let geom=null;
+    if(_geomB64){ try{ geom=b64ToGeom(_geomB64); }catch(e){ geom=null; } }
+    return {...rest, geom}; }).filter(im=>im.geom);   // Eintraege ohne rekonstruierbare Geometrie (korrupt/leer) ueberspringen statt crashen
+  selKind=null; selObs=-1; selAttr=-1; selImp=-1; selMt=-1; selFl=-1; tControls.detach();
+  renderObsList(); rebuildObsGroup(); renderAttrList(); rebuildAttrGroup(); renderImpList(); rebuildImpGroup(); rebuildMtGroup(); rebuild();
+  applying=false;
+}
+function scheduleHistory(){ if(applying) return; clearTimeout(histDeb); histDeb=setTimeout(pushHistory,500); }
+function pushHistory(){ const s=JSON.stringify(snapshot()); if(history[hidx]===s) return; history=history.slice(0,hidx+1); history.push(s); hidx=history.length-1; updateUndoRedo(); }
+function updateUndoRedo(){ el_('btnUndo').disabled=hidx<=0; el_('btnRedo').disabled=hidx>=history.length-1; }
+el_('btnUndo').addEventListener('click',()=>{ if(hidx>0){ hidx--; applyState(JSON.parse(history[hidx])); updateUndoRedo(); } });
+el_('btnRedo').addEventListener('click',()=>{ if(hidx<history.length-1){ hidx++; applyState(JSON.parse(history[hidx])); updateUndoRedo(); } });
+el_('btnSave').addEventListener('click',()=>{
+  try{ localStorage.setItem(SKEY, JSON.stringify(snapshot())); el_('btnSave').textContent='💾 Gespeichert'; }
+  catch(e){ el_('btnSave').textContent='⚠ Fehler'; }
+  setTimeout(()=>el_('btnSave').textContent='💾 Speichern',1500);
+});
+// Datei-Speichern/Laden (2026-07-12, *.bio Phase 3) — ergaenzend zum bisherigen localStorage-"Speichern"
+// (bleibt fuer schnelles Zwischenspeichern im Browser); Datei-Export ermoeglicht Weitergabe/Archivierung
+// ausserhalb des Browserprofils, wie bei Tessellation/Mattheck.
+el_('btnSaveFile').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(snapshot())],{type:'application/json'}), url=URL.createObjectURL(blob),
+    l=document.createElement('a'); l.href=url; l.download='baum-settings.json'; document.body.appendChild(l); l.click(); l.remove(); URL.revokeObjectURL(url);
+});
+el_('btnLoadFile').addEventListener('click',()=>el_('setFile').click());
+el_('setFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=ev=>{ try{ applyState(JSON.parse(ev.target.result)); scheduleHistory(); }
+    catch(err){ if(el_('impInfo')) el_('impInfo').textContent='Datei-Fehler: '+err.message; } };
+  rd.readAsText(f); e.target.value=''; });
+// *.bio Phase 4 (2026-07-12): Shell-Orchestrierung (bionicad.html) fragt per postMessage den Modul-Zustand ab
+// bzw. spielt ihn zurueck — nur relevant innerhalb der Shell, im Standalone-Betrieb kommen solche Nachrichten
+// nie an. Siehe wissensbasis/28_projektdatei_bio_format_konzept_v1.md.
+addEventListener('message', e=>{ if(!e.data) return;
+  if(e.data.bioCollect) e.source.postMessage({bioCollectReply:true, module:'baum', data:snapshot()}, '*');
+  else if(e.data.bioApply) { try{ applyState(e.data.data); scheduleHistory(); }
+    catch(err){ if(el_('impInfo')) el_('impInfo').textContent='Projekt-Fehler: '+err.message; } } });
+addEventListener('keydown',e=>{
+  const z=e.key==='z'||e.key==='Z', y=e.key==='y'||e.key==='Y';
+  if((e.ctrlKey||e.metaKey)&&z&&!e.shiftKey){ e.preventDefault(); el_('btnUndo').click(); }
+  else if((e.ctrlKey||e.metaKey)&&(y||(z&&e.shiftKey))){ e.preventDefault(); el_('btnRedo').click(); }
+});
+// 2026-07-13 (Horst-Idee): Zahlenwerte/Regler wirken erst nach Enter oder Wegklicken (siehe tessellation.html-Kommentar).
+document.addEventListener('keydown',e=>{ if(e.key==='Enter' && e.target && e.target.tagName==='INPUT' && e.target.type==='number'){ e.target.blur(); } });
+
+// ---------- Listener ----------
+let deb=null; const debRebuild=()=>{ clearTimeout(deb); deb=setTimeout(()=>{ rebuild(); scheduleHistory(); },40); };
+sliders.forEach(id=>el_(id).addEventListener('change',debRebuild));
+selects.concat(checks).forEach(id=>el_(id).addEventListener('change',()=>{ rebuild(); scheduleHistory(); }));
+
+// ---------- Numerische Eingabe für alle Regler (Werteanzeige -> editierbares Zahlenfeld) ----------
+const _numPairs=[];
+function enableNumericEdit(){
+  sliders.forEach(id=>{
+    const range=el_(id); if(!range) return;
+    const ctrl=range.closest('.ctrl'); if(!ctrl) return;
+    const b=ctrl.querySelector('label b'); if(!b) return;
+    const num=document.createElement('input'); num.type='number';
+    num.min=range.min; num.max=range.max; num.step=range.step; num.value=range.value; num.id=b.id;   // id übernehmen (refreshLabels bleibt gültig)
+    num.style.cssText='width:60px;background:#21303a;color:var(--accent);border:1px solid var(--line);border-radius:6px;padding:1px 5px;font-size:12px;text-align:right;font-variant-numeric:tabular-nums';
+    b.replaceWith(num);
+    _numPairs.push([range,num]);
+    range.addEventListener('change',()=>{ num.value=range.value; });                                  // Regler -> Feld
+    num.addEventListener('change',()=>{ range.value=num.value; range.dispatchEvent(new Event('change',{bubbles:true})); });  // Feld -> Regler (+rebuild)
+    num.addEventListener('change',()=>{ num.value=range.value; });                                    // Klemmung zurückspiegeln
+  });
+}
+function syncNumbers(){ for(const [range,num] of _numPairs) num.value=range.value; }
+enableNumericEdit();
+el_('btnRandom').addEventListener('click',()=>{ el_('seed').value=1+Math.floor(Math.random()*100); rebuild(); scheduleHistory(); });
+el_('btnReset').addEventListener('click',()=>{
+  const d={N:40,seed:7,zmin:55,zmax:100,box:50,sx:25,sy:25,sz:0,step:2,infl:16,kill:4,jitter:0,smooth:2,smoothS:0.5,maxit:4000,dia:8,exp:3,mind:0,diasmooth:0,volratio:0.3,mindist:2,clr:1.5,sepgap:0.5,connr:6,ores:16,oiter:150,orate:0.2,ogam:1.6,oprune:0.01,omaxr:2,ojit:0.35,oglatt:5,ofillet:0.6,voxel:0.5,filletmm:0.6,wand:0.8,floweq:0,wideneq:0,flanschdia:6,flanschdicke:1.5,flanschwx:0,flanschwy:0,pbar:1};
+  for(const k in d) el_(k).value=d[k];
+  syncNumbers();
+  el_('methode').value='wachstum'; el_('pattern').value='wolke'; el_('weight').value='uniform'; el_('shape').value='box'; el_('medium').value='wasser';
+  el_('quality').checked=true; el_('dual').checked=false; el_('collide').checked=false; el_('connect').checked=false;
+  el_('physviz').checked=false; el_('gravity').checked=false; el_('flansch').checked=false; el_('auslasswerte').checked=false;
+  obstacles=[]; attractors=[]; manualTargets=[];
+  inletFlange={fl:false,fd:6,ft:1.5,fax:0,fay:0}; flanges=[];
+  flangeMode=false; if(el_('btnFlangeMode')){ el_('btnFlangeMode').classList.remove('on'); el_('btnFlangeMode').textContent='⬤ Flansch-Modus (Auslässe zeigen)'; }
+  imports.forEach(im=>{ if(im.geom&&im.geom.dispose) im.geom.dispose(); }); imports=[];
+  selKind=null; selObs=-1; selAttr=-1; selImp=-1; selMt=-1; selFl=-1; tControls.detach();
+  if(el_('selProps')) el_('selProps').innerHTML='';
+  renderObsList(); rebuildObsGroup(); renderAttrList(); rebuildAttrGroup(); renderImpList(); rebuildImpGroup(); rebuildMtGroup(); rebuild(); scheduleHistory(); });
+
+// ---------- Export ----------
+function exportGeometrySTL(geo){
+  const pos=geo.attributes.position, idx=geo.index, cnt=idx?idx.count:pos.count, nTri=cnt/3;
+  const vA=new THREE.Vector3(),vB=new THREE.Vector3(),vC=new THREE.Vector3(),cb=new THREE.Vector3(),ab=new THREE.Vector3();
+  const buf=new ArrayBuffer(84+50*nTri), dv=new DataView(buf); dv.setUint32(80,nTri,true); let o=84;
+  for(let i=0;i<cnt;i+=3){
+    const i0=idx?idx.getX(i):i, i1=idx?idx.getX(i+1):i+1, i2=idx?idx.getX(i+2):i+2;
+    vA.fromBufferAttribute(pos,i0); vB.fromBufferAttribute(pos,i1); vC.fromBufferAttribute(pos,i2);
+    cb.subVectors(vC,vB); ab.subVectors(vA,vB); cb.cross(ab); cb.normalize();
+    const f=[cb.x,cb.y,cb.z, vA.x,vA.y,vA.z, vB.x,vB.y,vB.z, vC.x,vC.y,vC.z];
+    for(let k=0;k<12;k++){ dv.setFloat32(o,f[k],true); o+=4; } dv.setUint16(o,0,true); o+=2;
+  }
+  return {blob:new Blob([buf],{type:"model/stl"}), count:nTri};
+}
+function download(blob, name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); }
+function expName(suffix){ const b=(el_('expName')&&el_('expName').value||'lattice').trim().replace(/[\\/:*?"<>|]/g,'_')||'lattice'; return b+suffix; }
+el_('btnStl').addEventListener('click',()=>{
+  const {geo}=bakeTreesToGeometry(lastTrees, true);
+  const {blob,count}=exportGeometrySTL(geo); geo.dispose(); download(blob, expName("_vorschau.stl"));
+  el_('btnStl').textContent=`⬇ STL (${count.toLocaleString('de')} △)`; setTimeout(()=>el_('btnStl').textContent="⬇ STL",2500);
+});
+el_('btnJson').addEventListener('click',()=>{
+  const p=params();
+  const mk=t=>({typ:"partikel", position:[+t.p[0].toFixed(3),+t.p[1].toFixed(3),+t.p[2].toFixed(3)], gewicht:+t.w.toFixed(3)});
+  const hind=p.obstacles.map(o=> o.shape==='box'
+    ? {typ:"box", position:[o.x,o.y,o.z], groesse:[o.size*2,o.size*2,o.size*2]}
+    : {typ:"sphere", position:[o.x,o.y,o.z], radius:o.size});
+  const j={
+    start:{position: p.dual?[BOX/2,BOX/2,0]:[p.sx,p.sy,p.sz], durchmesser:p.dia},
+    ziele:lastTargets.map(mk), engine:"space_colonization", kanal_typ:"solid", wandstaerke:null,
+    doppelbaum:p.dual,
+    zweiter_baum: p.dual ? {start:{position:[BOX/2,BOX/2,BOX], durchmesser:p.dia}, ziele:lastTargetsB.map(mk)} : null,
+    schleifenanteil:0.0,
+    bauraum:{typ:p.shape, groesse:[BOX,BOX,BOX], position:[0,0,0]},
+    hindernisse:hind, mindestabstand:p.dual?p.mindist:1.0,
+    verbinde_enden:p.connect, verbindungsreichweite:p.connectR,
+    pipeline_reihenfolge:["durchmesser","winkel","uebergaenge","schleifen"],
+    pipeline_aktiv:{durchmesser:true,winkel:false,uebergaenge:true,schleifen:false},
+    uebergang_fillet_mm:1.0,
+    engine_parameter:{ schrittweite:p.step, einflussradius:p.infl, killabstand:p.kill, jitter:p.jitter,
+      glaettung_paesse:p.smooth, glaettung_staerke:p.smoothS, murray_exponent:p.exp, min_durchmesser:p.mind,
+      max_iterationen:p.maxit, seed:p.seed, voxel_groesse:0.5, durchmesser_glaettung:p.diasmooth, max_volumenverhaeltnis:+(1/Math.pow(Math.max(p.volratio,0.01),3)).toFixed(2) },
+    optimierung:{ aufloesung:p.opt_res, iterationen:p.opt_iter, rate:p.opt_rate, gamma:p.opt_gam, prune:p.opt_prune, max_radius:p.opt_maxr, jitter:p.opt_jit, glaettung:p.opt_glatt, fillet:p.opt_fillet },
+    output:{stl:true, voxelfeld:false, protokoll:true}
+  };
+  download(new Blob([JSON.stringify(j,null,2)],{type:"application/json"}), expName("_eingabe.json"));
+});
+// Skelett-Vertrag: exportiert das AKTUELL gebaute Skelett (Knoten/Eltern/Durchmesser).
+// Der Kern voxelisiert das per `bake` 1:1 — keine Neuberechnung, kein RNG -> die
+// STL entspricht exakt diesem Vorschau-Baum (auch für die Fluss-Methode).
+el_('btnSkelett').addEventListener('click',()=>{
+  if(anim){ el_('btnSkelett').textContent='⏸ erst Ausschleifen stoppen'; setTimeout(()=>el_('btnSkelett').textContent='⬇ skelett.json (Kern-Vertrag · exakt)',1800); return; }
+  const p=params();
+  const j=skelettObject(p);
+  const knoten=j.baeume.reduce((a,b)=>a+b.knoten.length,0);
+  download(new Blob([JSON.stringify(j,null,2)],{type:"application/json"}), expName("_skelett.json"));
+  el_('btnSkelett').textContent=`⬇ skelett.json (${knoten.toLocaleString('de')} Knoten)`; setTimeout(()=>el_('btnSkelett').textContent='⬇ skelett.json (Kern-Vertrag · exakt)',2500);
+});
+
+// ---------- WYSIWYG: echte Kern-Geometrie vom lokalen Server ----------
+// Über den Kern-Server geöffnet (http) -> same-origin; als Datei (file://) -> absolut.
+const SERVER = location.protocol.startsWith('http') ? '' : 'http://localhost:5151';
+let lastKernBuf=null;   // zuletzt gerenderte Kern-STL (für Booleans)
+// Skelett-Vertragsobjekt aus den aktuell gebauten Bäumen (geteilt von Export + Bake).
+function skelettObject(p){
+  const r=v=>+(+v).toFixed(3);
+  const baeume=lastTrees.map((tr,i)=>({
+    id: lastTrees.length>1 ? (i===0?'A':'B') : 'haupt',
+    knoten: tr.nodes.map(n=>{
+      const k={ pos:[r(n.pos[0]),r(n.pos[1]),r(n.pos[2])], parent:n.parent, durchmesser:r(n.dia||0) };
+      if(n._flange){ k.flansch_d=r(n._flange.d); k.flansch_t=r(n._flange.t); k.flansch_ax=r(n._flange.ax||0); k.flansch_ay=r(n._flange.ay||0); }
+      return k;
+    })
+  }));
+  // Enden-Verbindungs-Adern als Knotenketten anhängen → im Kern wasserdicht mit-voxelisiert
+  for(const v of crossVeins){ const B=baeume[v.ti]; if(!B) continue; let prev=v.start;
+    for(let s=0;s<v.pts.length;s++){ const idx=B.knoten.length;
+      B.knoten.push({ pos:[r(v.pts[s][0]),r(v.pts[s][1]),r(v.pts[s][2])], parent:prev, durchmesser:r(v.dia[s]) }); prev=idx; } }
+  // Verbundener Doppelbaum: nur die zwei Wurzeln öffnen (Blätter sind Kapillaren -> dicht).
+  const oeffnung = (p.dual && p.connect) ? "wurzeln" : "enden";
+  // Flansche werden pro Knoten exportiert (siehe oben); globale Felder daher 0.
+  return { version:1, voxel_groesse:p.voxel, fillet:p.fillet_mm,
+           kanal_typ: p.hollow?"hollow":"solid", wandstaerke:p.wand, knoten_kugeln:true,
+           oeffnung,
+           flansch_d: 0, flansch_t: 0,
+           baeume };
+}
+// Binär-STL -> BufferGeometry
+function parseBinarySTL(buf){
+  const dv=new DataView(buf); const n=dv.getUint32(80,true);
+  const pos=new Float32Array(n*9), nor=new Float32Array(n*9);
+  let o=84;
+  for(let i=0;i<n;i++){
+    const nx=dv.getFloat32(o,true), ny=dv.getFloat32(o+4,true), nz=dv.getFloat32(o+8,true); o+=12;
+    for(let v=0;v<3;v++){
+      const x=dv.getFloat32(o,true), y=dv.getFloat32(o+4,true), z=dv.getFloat32(o+8,true); o+=12;
+      const k=(i*3+v)*3; pos[k]=x; pos[k+1]=y; pos[k+2]=z; nor[k]=nx; nor[k+1]=ny; nor[k+2]=nz;
+    }
+    o+=2;
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  g.setAttribute('normal',   new THREE.BufferAttribute(nor,3));
+  return g;
+}
+function showReal(geo){
+  realMesh.geometry.dispose(); realMesh.geometry=geo;
+  treeMesh.visible=false; treeLines.visible=false; realMesh.visible=true;
+  dirty=true;
+}
+el_('btnReal').addEventListener('click', async ()=>{
+  if(anim){ anim=null; el_('btnAusschleifen').textContent='▶ Ausschleifen'; rebuild(); }
+  const btn=el_('btnReal'); const orig='🧊 Echte Geometrie (Kern)';
+  if(!lastTrees.length || !lastTrees[0].nodes.length){ btn.textContent='⚠ erst Baum bauen'; setTimeout(()=>btn.textContent=orig,1800); return; }
+  const p=params();
+  btn.textContent='⏳ rendere im Kern…'; btn.disabled=true;
+  try{
+    const res=await fetch(SERVER+'/bake', {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(skelettObject(p))});
+    if(!res.ok){ throw new Error('HTTP '+res.status+' '+(await res.text())); }
+    const buf=await res.arrayBuffer(); lastKernBuf=buf;
+    const geo=parseBinarySTL(buf);
+    showReal(geo);
+    btn.textContent=`✓ echte Geometrie (${(buf.byteLength/1024).toFixed(0)} KB)`;
+  }catch(e){
+    btn.textContent='⚠ Server läuft? (serve)';
+    console.warn('WYSIWYG-Bake:', e);
+  }
+  btn.disabled=false;
+  setTimeout(()=>btn.textContent=orig, 3000);
+});
+// Echte Kern-STL herunterladen (rendert frisch im Kern und speichert die Datei).
+el_('btnRealStl').addEventListener('click', async ()=>{
+  if(anim){ anim=null; el_('btnAusschleifen').textContent='▶ Ausschleifen'; rebuild(); }
+  const btn=el_('btnRealStl'); const orig='⬇ Echte STL';
+  if(!lastTrees.length || !lastTrees[0].nodes.length){ btn.textContent='⚠ erst Baum bauen'; setTimeout(()=>btn.textContent=orig,1800); return; }
+  const p=params();
+  btn.textContent='⏳ rendere…'; btn.disabled=true;
+  try{
+    const res=await fetch(SERVER+'/bake', {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(skelettObject(p))});
+    if(!res.ok){ throw new Error('HTTP '+res.status+' '+(await res.text())); }
+    const buf=await res.arrayBuffer(); lastKernBuf=buf;
+    showReal(parseBinarySTL(buf));   // gleich auch anzeigen
+    download(new Blob([buf],{type:'model/stl'}), expName("_kern.stl"));
+    btn.textContent=`✓ gespeichert (${(buf.byteLength/1024).toFixed(0)} KB)`;
+  }catch(e){
+    btn.textContent='⚠ Server läuft? (serve)';
+    console.warn('Echte-STL-Export:', e);
+  }
+  btn.disabled=false;
+  setTimeout(()=>btn.textContent=orig, 3000);
+});
+// ---- Booleans (Resultat ↔ Bauraum/STL) ----
+if(window.BoolOps) BoolOps.mountPanel({
+  container: el_('boolPanel'),
+  serverUrl: ()=> SERVER,
+  getResult: ()=> lastKernBuf,
+  getBuildTris: ()=>{
+    const idx=imports.findIndex(im=>im.role==='bauraum' && im.geom);
+    if(idx<0 || !importGroup.children[idx]) return null;
+    const m=importGroup.children[idx]; m.updateMatrixWorld(true);
+    const pos=m.geometry.attributes.position, v=new THREE.Vector3(), tris=[];
+    for(let i=0;i+2<pos.count;i+=3){ const t=[]; for(let k=0;k<3;k++){ v.fromBufferAttribute(pos,i+k).applyMatrix4(m.matrixWorld); t.push([v.x,v.y,v.z]); } tris.push(t); }
+    return tris;
+  },
+  voxel: ()=> (+el_('voxel').value)||0.4,
+  warn: (msg)=>{ const e=el_('flowImpInfo'); if(e) e.textContent=msg; console.warn(msg); },
+  onResult: (buf)=>{ lastKernBuf=buf; showReal(parseBinarySTL(buf)); }
+});
+
+resize();
+(function init(){
+  const saved=localStorage.getItem(SKEY);
+  if(saved){ try{ applyState(JSON.parse(saved)); return; }catch(e){} }
+  renderObsList(); rebuildObsGroup(); renderAttrList(); rebuildAttrGroup(); renderImpList(); rebuildImpGroup(); rebuildMtGroup(); rebuild();
+})();
+history=[JSON.stringify(snapshot())]; hidx=0; updateUndoRedo();
+loop();
+</script>
+<div style="position:fixed;top:9px;right:16px;z-index:2000;font:800 17px system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:.3px;color:#4fd1a5;opacity:.92;pointer-events:none;user-select:none;text-shadow:0 1px 4px rgba(0,0,0,.45)">Bioni<span style="color:#e8eef2">CAD</span></div>
+</body>
+</html>

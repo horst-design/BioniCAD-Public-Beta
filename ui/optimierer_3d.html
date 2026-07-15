@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fluss-Optimierer 3D — live</title>
+<style>
+  :root { --bg:#0e1116; --panel:#161b22; --line:#2a3340; --accent:#4fd1a5; --text:#e6edf3; --muted:#8b97a7; }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,sans-serif;overflow:hidden;}
+  #app{display:flex;height:100%;}
+  #panel{width:300px;min-width:300px;height:100%;overflow-y:auto;background:var(--panel);border-right:1px solid var(--line);padding:16px 16px 40px;}
+  #view{flex:1;position:relative;}
+  canvas{display:block;}
+  h1{font-size:16px;margin:0 0 2px;}
+  .sub{color:var(--muted);font-size:12px;margin:0 0 14px;line-height:1.45;}
+  .gt{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:16px 0 9px;}
+  .ctrl{margin:0 0 11px;}
+  .ctrl label{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;}
+  .ctrl label b{color:var(--accent);font-variant-numeric:tabular-nums;}
+  input[type=range]{width:100%;accent-color:var(--accent);}
+  .row{display:flex;gap:8px;margin:14px 0 0;}
+  button{flex:1;background:#21303a;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px;font-size:13px;cursor:pointer;}
+  button:hover{border-color:var(--accent);}
+  button.primary{background:var(--accent);color:#06231a;border-color:var(--accent);font-weight:600;}
+  #stats{margin-top:14px;padding:11px;border:1px solid var(--line);border-radius:9px;background:#12171e;font-size:12.5px;color:var(--muted);line-height:1.8;}
+  #stats b{color:var(--text);font-variant-numeric:tabular-nums;}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:12px;line-height:1.5;}
+  #legend{position:absolute;left:14px;bottom:12px;font-size:11.5px;color:var(--muted);background:rgba(22,27,34,.8);border:1px solid var(--line);border-radius:8px;padding:8px 11px;}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <h1>Fluss-Optimierer 3D</h1>
+    <p class="sub">Ein 3D-Gitter schleift sich live nach Durchfluss aus (Physarum / Constructal). Eine Quelle versorgt viele Kapillaren → wachsendes, sich selbst optimierendes Netz. Maus: drehen/zoomen.</p>
+
+    <div class="gt">Netzwerk</div>
+    <div class="ctrl"><label>Bauraum (mm) <b id="vBox">50</b></label><input id="box" type="range" min="30" max="80" value="50" step="5"></div>
+    <div class="ctrl"><label>Gitter-Auflösung <b id="vRes">12</b></label><input id="res" type="range" min="6" max="20" value="12" step="1"></div>
+    <div class="ctrl"><label>Kapillaren <b id="vSinks">14</b></label><input id="sinks" type="range" min="3" max="40" value="14" step="1"></div>
+    <div class="ctrl"><label>Seed <b id="vSeed">3</b></label><input id="seed" type="range" min="1" max="60" value="3" step="1"></div>
+    <div class="ctrl"><label>Darstellung</label>
+      <select id="darst" style="width:100%;background:#21303a;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px;font-size:13px;">
+        <option value="linien">Linien (schnell)</option>
+        <option value="roehren">Röhren (Ausschleifen)</option>
+      </select></div>
+
+    <div class="gt">Optimierung</div>
+    <div class="ctrl"><label>Anpassungsrate <b id="vRate">0.20</b></label><input id="rate" type="range" min="0.02" max="0.6" value="0.2" step="0.01"></div>
+    <div class="ctrl"><label>Fluss-Exponent γ <b id="vGam">1.6</b></label><input id="gam" type="range" min="0.6" max="2.5" value="1.6" step="0.1"></div>
+    <div class="ctrl"><label>Kappen (×Senken-Fluss) <b id="vPrune">0.010</b></label><input id="prune" type="range" min="0.002" max="0.05" value="0.01" step="0.002"></div>
+    <div class="ctrl"><label>Tempo (Schritte/Frame) <b id="vSpeed">2</b></label><input id="speed" type="range" min="1" max="8" value="2" step="1"></div>
+
+    <div class="row"><button id="btnPlay" class="primary">▶ Start</button><button id="btnStep">⏭ Schritt</button></div>
+    <div class="row"><button id="btnNew">↻ Neues Netz</button></div>
+    <div class="row"><button id="btnStl">⬇ STL</button></div>
+
+    <div id="stats">
+      Iteration: <b id="sIter">0</b><br>
+      Aktive Kanäle: <b id="sEdges">–</b> / <b id="sEdges0">–</b><br>
+      Kapillaren erreicht: <b id="sReach">–</b>
+    </div>
+    <p class="hint">Beobachte: anfangs fließt es durch das ganze Gitter (viele dünne Linien), dann verdicken sich die genutzten Adern, der Rest verschwindet — bis ein effizientes Verteilnetz übrig bleibt. ⬇ STL exportiert den aktuellen Stand als Beam-Netz.</p>
+  </div>
+  <div id="view">
+    <div id="legend"><span class="dot" style="background:#4fd86a"></span>Quelle &nbsp; <span class="dot" style="background:#e0a44f"></span>Kapillaren &nbsp;·&nbsp; Farbe = Durchfluss</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const el=id=>document.getElementById(id);
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};}
+
+// ---------- Zustand ----------
+let pos=[];          // [x,y,z]
+let ea=[],eb=[],eL=[],D=[],alive=[];
+let adj=[];          // [{ei,other}]
+let P=[],inj=[];
+let source=0, sinks=[], ground=0;
+let iter=0, edges0=0, running=false, BOX=50;
+const SOLVER=140, WARMUP=10;
+
+function params(){return{
+  box:+el('box').value, res:+el('res').value, sinks:+el('sinks').value, seed:+el('seed').value,
+  rate:+el('rate').value, gam:+el('gam').value, prune:+el('prune').value, speed:+el('speed').value };}
+function refresh(){const q=params();
+  el('vBox').textContent=q.box; el('vRes').textContent=q.res; el('vSinks').textContent=q.sinks; el('vSeed').textContent=q.seed;
+  el('vRate').textContent=q.rate.toFixed(2); el('vGam').textContent=q.gam.toFixed(1);
+  el('vPrune').textContent=q.prune.toFixed(3); el('vSpeed').textContent=q.speed;}
+
+function dist(i,j){const dx=pos[i][0]-pos[j][0],dy=pos[i][1]-pos[j][1],dz=pos[i][2]-pos[j][2];return Math.sqrt(dx*dx+dy*dy+dz*dz);}
+function nearest(p){let bi=0,bd=1e18;for(let i=0;i<pos.length;i++){const dx=pos[i][0]-p[0],dy=pos[i][1]-p[1],dz=pos[i][2]-p[2],d=dx*dx+dy*dy+dz*dz;if(d<bd){bd=d;bi=i;}}return bi;}
+
+function buildNetwork(){
+  const q=params(); BOX=q.box; const res=q.res; const rng=mulberry32(q.seed*100003+1);
+  const sp=BOX/(res-1), jit=sp*0.3;
+  const I=(x,y,z)=>(z*res+y)*res+x;
+  pos=[];
+  for(let z=0;z<res;z++)for(let y=0;y<res;y++)for(let x=0;x<res;x++)
+    pos.push([x*sp+(rng()*2-1)*jit, y*sp+(rng()*2-1)*jit, z*sp+(rng()*2-1)*jit]);
+  ea=[];eb=[];eL=[];
+  const add=(i,j)=>{ea.push(i);eb.push(j);eL.push(Math.max(dist(i,j),1e-3));};
+  for(let z=0;z<res;z++)for(let y=0;y<res;y++)for(let x=0;x<res;x++){
+    const i=I(x,y,z);
+    if(x+1<res)add(i,I(x+1,y,z));
+    if(y+1<res)add(i,I(x,y+1,z));
+    if(z+1<res)add(i,I(x,y,z+1));
+  }
+  const m=ea.length; D=new Array(m).fill(1); alive=new Array(m).fill(true);
+  source=nearest([BOX/2,BOX/2,0]);
+  // Kapillaren: Farthest-Point-Sampling (gut verteilt)
+  sinks=[]; const chosen=[source];
+  for(let s=0;s<q.sinks;s++){
+    let best=-1,bd=-1;
+    for(let i=0;i<pos.length;i++){
+      if(i===source||sinks.indexOf(i)>=0)continue;
+      let md=1e18; for(const c of chosen){const dx=pos[i][0]-pos[c][0],dy=pos[i][1]-pos[c][1],dz=pos[i][2]-pos[c][2],d=dx*dx+dy*dy+dz*dz; if(d<md)md=d;}
+      if(md>bd){bd=md;best=i;}
+    }
+    if(best>=0){sinks.push(best);chosen.push(best);}
+  }
+  ground=sinks[0];
+  inj=new Array(pos.length).fill(0); inj[source]=1; const q1=1/sinks.length;
+  for(let s=1;s<sinks.length;s++) inj[sinks[s]]=-q1;
+  buildAdj(); P=new Array(pos.length).fill(0);
+  iter=0; edges0=m;
+  rebuildScene();
+}
+function buildAdj(){
+  adj=pos.map(()=>[]);
+  for(let e=0;e<ea.length;e++){ if(!alive[e])continue; adj[ea[e]].push({ei:e,other:eb[e]}); adj[eb[e]].push({ei:e,other:ea[e]}); }
+}
+
+// ---------- Löser (Gauss-Seidel, stabil) ----------
+function solve(it){
+  for(let k=0;k<it;k++){
+    for(let i=0;i<pos.length;i++){
+      if(i===ground){P[i]=0;continue;}
+      let sc=0,scp=0;
+      for(const a of adj[i]){const c=D[a.ei]/eL[a.ei]; sc+=c; scp+=c*P[a.other];}
+      if(sc>1e-12) P[i]=(inj[i]+scp)/sc;
+    }
+  }
+}
+function flux(e){return (D[e]/eL[e])*(P[ea[e]]-P[eb[e]]);}
+
+function step(){
+  const q=params(); const q1=1/sinks.length; const pf=q.prune*q1;
+  solve(SOLVER);
+  const m=ea.length; const qf=new Array(m);
+  for(let e=0;e<m;e++) qf[e]=alive[e]?Math.abs(flux(e)):0;
+  for(let e=0;e<m;e++){ if(!alive[e])continue; D[e]+=q.rate*(Math.pow(qf[e],q.gam)-D[e]); if(D[e]<0)D[e]=0; }
+  if(iter>=WARMUP){
+    let ch=false;
+    for(let e=0;e<m;e++){ if(alive[e]&&ea[e]!==ground&&eb[e]!==ground&&qf[e]<pf){alive[e]=false;ch=true;} }
+    if(ch) buildAdj();
+  }
+  iter++;
+}
+
+// ====================== three.js ======================
+const view=el('view');
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+view.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0e1116);
+const camera=new THREE.PerspectiveCamera(45,1,0.1,4000); camera.up.set(0,0,1);
+scene.add(new THREE.AmbientLight(0xffffff,0.7));
+const key=new THREE.DirectionalLight(0xffffff,0.6); key.position.set(60,30,90); scene.add(key);
+
+let lines=null, markers=new THREE.Group(); scene.add(markers);
+let mesh=null;
+const lineMat=new THREE.LineBasicMaterial({vertexColors:true, transparent:true, opacity:0.9});
+const meshMat=new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.55, metalness:0.05});
+
+function flowColor(t,out){
+  const s=[[58,110,165],[79,209,165],[232,196,90],[224,102,79]];
+  const x=Math.max(0,Math.min(1,t))*3, i=Math.floor(x), f=x-i, a=s[i], b=s[Math.min(i+1,3)];
+  out[0]=(a[0]+(b[0]-a[0])*f)/255; out[1]=(a[1]+(b[1]-a[1])*f)/255; out[2]=(a[2]+(b[2]-a[2])*f)/255;
+}
+function updateLines(){
+  let qmax=1e-6; for(let e=0;e<ea.length;e++) if(alive[e]){const Q=Math.abs(flux(e)); if(Q>qmax)qmax=Q;}
+  const P3=[],C=[],c=[0,0,0];
+  for(let e=0;e<ea.length;e++){
+    if(!alive[e])continue;
+    const a=pos[ea[e]],b=pos[eb[e]]; flowColor(Math.abs(flux(e))/qmax,c);
+    P3.push(a[0],a[1],a[2], b[0],b[1],b[2]); C.push(c[0],c[1],c[2], c[0],c[1],c[2]);
+  }
+  if(lines){ scene.remove(lines); lines.geometry.dispose(); }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P3,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(C,3));
+  lines=new THREE.LineSegments(g,lineMat); scene.add(lines);
+}
+// Röhren-Darstellung: Durchmesser wachsen live nach Fluss (Ausschleifen).
+// Start: D überall gleich -> dünne, gleichmäßige Röhren. Mit den Iterationen
+// verdicken sich die Arterien, dünne Äste schrumpfen/sterben (Bejan/Murray).
+function buildTubes(){
+  let dmax=1e-6; for(let e=0;e<ea.length;e++) if(alive[e]&&D[e]>dmax)dmax=D[e];
+  let qmax=1e-6; for(let e=0;e<ea.length;e++) if(alive[e]){const Q=Math.abs(flux(e)); if(Q>qmax)qmax=Q;}
+  const maxR=BOX*0.035, minR=BOX*0.004;
+  const P3=[],N3=[],C=[],c=[0,0,0];
+  const UP=new THREE.Vector3(0,1,0),q=new THREE.Quaternion(),A=new THREE.Vector3(),B=new THREE.Vector3(),
+        d=new THREE.Vector3(),m=new THREE.Matrix4(),s=new THREE.Vector3(1,1,1),pp=new THREE.Vector3();
+  for(let e=0;e<ea.length;e++){
+    if(!alive[e])continue;
+    const r=Math.max(minR, maxR*Math.sqrt(Math.max(D[e]/dmax,0.0)));
+    A.set(pos[ea[e]][0],pos[ea[e]][1],pos[ea[e]][2]); B.set(pos[eb[e]][0],pos[eb[e]][1],pos[eb[e]][2]);
+    d.subVectors(B,A); const h=d.length(); if(h<1e-4)continue;
+    const cg=new THREE.CylinderGeometry(r,r,h,5,1);
+    q.setFromUnitVectors(UP,d.clone().normalize()); pp.copy(A).addScaledVector(d,0.5); m.compose(pp,q,s); cg.applyMatrix4(m);
+    flowColor(Math.abs(flux(e))/qmax,c);
+    const ps=cg.attributes.position, nr=cg.attributes.normal, idx=cg.index, cnt=idx?idx.count:ps.count;
+    for(let i=0;i<cnt;i++){ const vi=idx?idx.getX(i):i;
+      P3.push(ps.getX(vi),ps.getY(vi),ps.getZ(vi)); N3.push(nr.getX(vi),nr.getY(vi),nr.getZ(vi)); C.push(c[0],c[1],c[2]); }
+    cg.dispose();
+  }
+  if(mesh){ scene.remove(mesh); mesh.geometry.dispose(); }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(P3,3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(N3,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(C,3));
+  mesh=new THREE.Mesh(g,meshMat); scene.add(mesh);
+}
+function updateRender(){
+  const mode=el('darst')?el('darst').value:'linien';
+  if(mode==='roehren'){
+    if(lines) lines.visible=false;
+    buildTubes(); if(mesh) mesh.visible=true;
+  } else {
+    if(mesh) mesh.visible=false;
+    updateLines(); if(lines) lines.visible=true;
+  }
+}
+function rebuildScene(){
+  // Marker
+  scene.remove(markers); markers.traverse(o=>{if(o.geometry)o.geometry.dispose();if(o.material)o.material.dispose();});
+  markers=new THREE.Group(); scene.add(markers);
+  const sg=new THREE.SphereGeometry(1,12,10);
+  function mark(i,col,r){const m=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:col}));m.scale.setScalar(r);m.position.set(pos[i][0],pos[i][1],pos[i][2]);markers.add(m);}
+  for(const s of sinks) mark(s,0xe0a44f,BOX*0.012);
+  mark(source,0x4fd86a,BOX*0.02);
+  updateRender(); updateStats(); dirty=true;
+}
+function updateStats(){
+  el('sIter').textContent=iter;
+  let a=0; for(const x of alive) if(x)a++;
+  el('sEdges').textContent=a; el('sEdges0').textContent=edges0;
+  // erreichte Kapillaren = haben aktive Kante
+  const has=new Set(); for(let e=0;e<ea.length;e++) if(alive[e]){has.add(ea[e]);has.add(eb[e]);}
+  let r=0; for(const s of sinks) if(has.has(s))r++;
+  el('sReach').textContent=r+' / '+sinks.length;
+}
+
+// ---------- Orbit ----------
+const target=new THREE.Vector3(25,25,22);
+let az=Math.PI*0.25, el2=Math.PI*0.2, rad=110, dirty=true;
+function updateCam(){ target.set(BOX/2,BOX/2,BOX*0.45); const ce=Math.cos(el2),se=Math.sin(el2);
+  camera.position.set(target.x+rad*ce*Math.cos(az),target.y+rad*ce*Math.sin(az),target.z+rad*se); camera.lookAt(target); }
+let drag=false,px=0,py=0;
+renderer.domElement.addEventListener('mousedown',e=>{drag=true;px=e.clientX;py=e.clientY;});
+addEventListener('mouseup',()=>drag=false);
+addEventListener('mousemove',e=>{if(!drag)return;az-=(e.clientX-px)*0.01;el2+=(e.clientY-py)*0.01;el2=Math.max(-1.45,Math.min(1.45,el2));px=e.clientX;py=e.clientY;dirty=true;});
+renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();rad*=(1+Math.sign(e.deltaY)*0.08);rad=Math.max(20,Math.min(400,rad));dirty=true;},{passive:false});
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();dirty=true;}
+addEventListener('resize',resize);
+function loop(){
+  if(running){ const q=params(); for(let s=0;s<q.speed;s++) step(); updateRender(); updateStats(); dirty=true; }
+  if(dirty){ updateCam(); renderer.render(scene,camera); dirty=false; }
+  requestAnimationFrame(loop);
+}
+
+// ---------- STL-Export (Beams aus aktivem Netz) ----------
+function exportSTL(){
+  let dmax=1e-6; for(let e=0;e<ea.length;e++) if(alive[e]&&D[e]>dmax)dmax=D[e];
+  const maxR=BOX*0.05; const tris=[];
+  const UP=new THREE.Vector3(0,1,0),q=new THREE.Quaternion(),A=new THREE.Vector3(),B=new THREE.Vector3(),d=new THREE.Vector3(),m=new THREE.Matrix4(),s=new THREE.Vector3(1,1,1),p=new THREE.Vector3();
+  for(let e=0;e<ea.length;e++){
+    if(!alive[e])continue; const dn=D[e]/dmax; if(dn<0.08)continue;
+    const r=maxR*Math.pow(dn,0.7);
+    A.set(pos[ea[e]][0],pos[ea[e]][1],pos[ea[e]][2]); B.set(pos[eb[e]][0],pos[eb[e]][1],pos[eb[e]][2]);
+    d.subVectors(B,A); const h=d.length(); if(h<1e-4)continue;
+    const cg=new THREE.CylinderGeometry(r,r,h,8,1); q.setFromUnitVectors(UP,d.clone().normalize()); p.copy(A).addScaledVector(d,0.5); m.compose(p,q,s); cg.applyMatrix4(m);
+    const ps=cg.attributes.position, idx=cg.index, cnt=idx?idx.count:ps.count;
+    const va=new THREE.Vector3(),vb=new THREE.Vector3(),vc=new THREE.Vector3(),cb=new THREE.Vector3(),ab=new THREE.Vector3();
+    for(let i=0;i<cnt;i+=3){const i0=idx?idx.getX(i):i,i1=idx?idx.getX(i+1):i+1,i2=idx?idx.getX(i+2):i+2;
+      va.fromBufferAttribute(ps,i0);vb.fromBufferAttribute(ps,i1);vc.fromBufferAttribute(ps,i2);
+      cb.subVectors(vc,vb);ab.subVectors(va,vb);cb.cross(ab);cb.normalize();
+      tris.push([cb.x,cb.y,cb.z,va.x,va.y,va.z,vb.x,vb.y,vb.z,vc.x,vc.y,vc.z]);}
+    cg.dispose();
+  }
+  const buf=new ArrayBuffer(84+50*tris.length),dv=new DataView(buf);dv.setUint32(80,tris.length,true);let o=84;
+  for(const t of tris){for(let k=0;k<12;k++){dv.setFloat32(o,t[k],true);o+=4;}dv.setUint16(o,0,true);o+=2;}
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([buf],{type:'model/stl'}));a.download='optimiert_3d.stl';a.click();
+}
+
+// ---------- Steuerung ----------
+['box','res','sinks','seed'].forEach(id=>el(id).addEventListener('input',()=>{refresh();buildNetwork();}));
+['rate','gam','prune','speed'].forEach(id=>el(id).addEventListener('input',refresh));
+el('btnPlay').addEventListener('click',()=>{running=!running;el('btnPlay').textContent=running?'⏸ Pause':'▶ Start';el('btnPlay').classList.toggle('primary',!running);});
+el('btnStep').addEventListener('click',()=>{step();updateRender();updateStats();dirty=true;});
+el('darst').addEventListener('change',()=>{updateRender();dirty=true;});
+el('btnNew').addEventListener('click',buildNetwork);
+el('btnStl').addEventListener('click',exportSTL);
+
+refresh(); resize(); buildNetwork(); loop();
+</script>
+</body>
+</html>

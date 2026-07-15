@@ -1,0 +1,169 @@
+{
+  "start": {
+    "position": [
+      25,
+      25,
+      0
+    ],
+    "durchmesser": 8
+  },
+  "ziele": [
+    {
+      "typ": "partikel",
+      "position": [
+        40.976,
+        6.425,
+        39.461
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        37.465,
+        22.673,
+        28.64
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        35.245,
+        34.524,
+        27.793
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        34.894,
+        13.19,
+        38.565
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        41.817,
+        19.709,
+        28.382
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        27.338,
+        14.952,
+        43.453
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        10.858,
+        22.592,
+        43.169
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        27.747,
+        5.904,
+        47.189
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        38.655,
+        14.47,
+        37.334
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        8.984,
+        32.954,
+        39.817
+      ],
+      "gewicht": 1
+    }
+  ],
+  "engine": "space_colonization",
+  "kanal_typ": "solid",
+  "wandstaerke": null,
+  "doppelbaum": false,
+  "zweiter_baum": null,
+  "schleifenanteil": 0,
+  "bauraum": {
+    "typ": "box",
+    "groesse": [
+      50,
+      50,
+      50
+    ],
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "hindernisse": [],
+  "mindestabstand": 1,
+  "verbinde_enden": false,
+  "verbindungsreichweite": 6,
+  "pipeline_reihenfolge": [
+    "durchmesser",
+    "winkel",
+    "uebergaenge",
+    "schleifen"
+  ],
+  "pipeline_aktiv": {
+    "durchmesser": true,
+    "winkel": false,
+    "uebergaenge": true,
+    "schleifen": false
+  },
+  "uebergang_fillet_mm": 1,
+  "engine_parameter": {
+    "schrittweite": 1.2,
+    "einflussradius": 16,
+    "killabstand": 4,
+    "jitter": 0,
+    "glaettung_paesse": 2,
+    "glaettung_staerke": 0.5,
+    "murray_exponent": 3,
+    "min_durchmesser": 0.8,
+    "max_iterationen": 4000,
+    "seed": 7,
+    "voxel_groesse": 0.5,
+    "durchmesser_glaettung": 0,
+    "max_volumenverhaeltnis": 50
+  },
+  "output": {
+    "stl": true,
+    "voxelfeld": false,
+    "protokoll": true
+  },
+  "optimierung": {
+    "aufloesung": 16,
+    "iterationen": 150,
+    "rate": 0.2,
+    "gamma": 1.6,
+    "prune": 0.01,
+    "max_radius": 2.5,
+    "jitter": 0.4,
+    "glaettung": 5,
+    "fillet": 0.6
+  }
+}

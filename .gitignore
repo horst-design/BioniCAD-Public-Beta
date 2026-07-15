@@ -1,0 +1,26 @@
+# .gitignore für das Projekt "3D Generator"
+# Legt fest, welche Dateien/Ordner Git NICHT versionieren soll.
+
+# .NET / C# Build-Ausgaben (sobald der Code-Teil startet)
+bin/
+obj/
+*.user
+.vs/
+
+# Editor-/OS-spezifische Dateien
+.DS_Store
+Thumbs.db
+imgui.ini
+
+# Lokale, persönliche Einstellungsdateien (falls später nötig)
+*.local.json
+
+# Generierte Geometrie-Ausgaben (werden aus Parametern reproduziert)
+*.stl
+*.vox
+
+# Publish-/Installer-Ausgaben (werden aus Quellcode neu gebaut, zu groß fürs Repo)
+publish/
+installer/output/
+installer/**/output/
+*.exe

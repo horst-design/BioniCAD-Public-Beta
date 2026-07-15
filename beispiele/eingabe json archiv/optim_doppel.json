@@ -1,0 +1,41 @@
+{
+  "start": { "position": [25, 25, 0], "durchmesser": 8 },
+  "ziele": [
+    { "typ": "partikel", "position": [12, 12, 25], "gewicht": 1 },
+    { "typ": "partikel", "position": [38, 12, 25], "gewicht": 1 },
+    { "typ": "partikel", "position": [12, 38, 25], "gewicht": 1 },
+    { "typ": "partikel", "position": [38, 38, 25], "gewicht": 1 },
+    { "typ": "partikel", "position": [25, 25, 25], "gewicht": 1 },
+    { "typ": "partikel", "position": [20, 30, 18], "gewicht": 1 },
+    { "typ": "partikel", "position": [30, 20, 32], "gewicht": 1 },
+    { "typ": "partikel", "position": [16, 25, 30], "gewicht": 1 },
+    { "typ": "partikel", "position": [34, 25, 20], "gewicht": 1 },
+    { "typ": "partikel", "position": [25, 16, 22], "gewicht": 1 },
+    { "typ": "partikel", "position": [25, 34, 28], "gewicht": 1 },
+    { "typ": "partikel", "position": [30, 30, 14], "gewicht": 1 }
+  ],
+  "engine": "space_colonization",
+  "kanal_typ": "solid",
+  "wandstaerke": null,
+  "doppelbaum": true,
+  "zweiter_baum": {
+    "start": { "position": [25, 25, 50], "durchmesser": 8 },
+    "ziele": []
+  },
+  "schleifenanteil": 0.0,
+  "bauraum": { "typ": "box", "groesse": [50, 50, 50], "position": [0, 0, 0] },
+  "hindernisse": [],
+  "mindestabstand": 1.0,
+  "optimierung": {
+    "aufloesung": 18,
+    "iterationen": 150,
+    "rate": 0.2,
+    "gamma": 1.6,
+    "prune": 0.01,
+    "max_radius": 2.5,
+    "jitter": 0.4,
+    "glaettung": 5,
+    "fillet": 0.6
+  },
+  "output": { "stl": true, "voxelfeld": false, "protokoll": true }
+}

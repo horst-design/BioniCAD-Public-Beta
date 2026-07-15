@@ -1,0 +1,437 @@
+{
+  "start": {
+    "position": [
+      25,
+      25,
+      0
+    ],
+    "durchmesser": 9
+  },
+  "ziele": [
+    {
+      "typ": "partikel",
+      "position": [
+        40.976,
+        6.425,
+        39.461
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        14.101,
+        39.055,
+        28.315
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        5.786,
+        22.412,
+        28.314
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        40.218,
+        13.304,
+        32.949
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        37.465,
+        22.673,
+        28.64
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        34.113,
+        36.362,
+        36.905
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        19.836,
+        27.359,
+        38.237
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        18.831,
+        20.374,
+        44.081
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        35.245,
+        34.524,
+        27.793
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        32.887,
+        28.381,
+        37.344
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        29.748,
+        18.275,
+        34.213
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        11.412,
+        21.204,
+        41.519
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        34.894,
+        13.19,
+        38.565
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        34.565,
+        13.778,
+        48.542
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        11.41,
+        35.401,
+        30.191
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        41.824,
+        7.534,
+        31.353
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        41.817,
+        19.709,
+        28.382
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        42.947,
+        33.466,
+        33.343
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        42.76,
+        42.553,
+        42.32
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        34.549,
+        22.47,
+        33.662
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        27.338,
+        14.952,
+        43.453
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        16.163,
+        8.93,
+        48.973
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        36.86,
+        44.148,
+        30.902
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        14.543,
+        17.629,
+        33.135
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        10.858,
+        22.592,
+        43.169
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        27.683,
+        44.32,
+        40.184
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        16.698,
+        42.533,
+        40.522
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        42.917,
+        28.083,
+        30.591
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        27.747,
+        5.904,
+        47.189
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        40.423,
+        9.823,
+        40.367
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        25.748,
+        11.538,
+        37.644
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        15.595,
+        36.971,
+        40.163
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        38.655,
+        14.47,
+        37.334
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        40.128,
+        11.694,
+        41.586
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        24.881,
+        30.223,
+        48.467
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        39.209,
+        41.064,
+        31.349
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        8.984,
+        32.954,
+        39.817
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        30.353,
+        12.603,
+        30.943
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        23.907,
+        25.79,
+        48.233
+      ],
+      "gewicht": 1
+    },
+    {
+      "typ": "partikel",
+      "position": [
+        17.088,
+        21.765,
+        35.522
+      ],
+      "gewicht": 1
+    }
+  ],
+  "engine": "space_colonization",
+  "kanal_typ": "solid",
+  "wandstaerke": null,
+  "doppelbaum": false,
+  "zweiter_baum": null,
+  "schleifenanteil": 0,
+  "bauraum": {
+    "typ": "box",
+    "groesse": [
+      50,
+      50,
+      50
+    ],
+    "position": [
+      0,
+      0,
+      0
+    ]
+  },
+  "hindernisse": [],
+  "mindestabstand": 1,
+  "verbinde_enden": false,
+  "verbindungsreichweite": 6,
+  "pipeline_reihenfolge": [
+    "durchmesser",
+    "winkel",
+    "uebergaenge",
+    "schleifen"
+  ],
+  "pipeline_aktiv": {
+    "durchmesser": true,
+    "winkel": false,
+    "uebergaenge": true,
+    "schleifen": false
+  },
+  "uebergang_fillet_mm": 1,
+  "engine_parameter": {
+    "schrittweite": 2.3,
+    "einflussradius": 45,
+    "killabstand": 5,
+    "jitter": 0,
+    "glaettung_paesse": 2,
+    "glaettung_staerke": 0.5,
+    "murray_exponent": 3,
+    "min_durchmesser": 2.2,
+    "max_iterationen": 2600,
+    "seed": 7,
+    "voxel_groesse": 0.5,
+    "durchmesser_glaettung": 0,
+    "max_volumenverhaeltnis": 50
+  },
+  "optimierung": {
+    "aufloesung": 29,
+    "iterationen": 150,
+    "rate": 0.2,
+    "gamma": 1.8,
+    "prune": 0.05,
+    "max_radius": 2,
+    "jitter": 0.35
+  },
+  "output": {
+    "stl": true,
+    "voxelfeld": false,
+    "protokoll": true
+  }
+}

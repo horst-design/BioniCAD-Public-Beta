@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>BioniCAD</title>
+<style>
+  html,body{margin:0;height:100%;background:#0e1116;color:#e8eef2;font:14px system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden}
+  #bar{height:46px;display:flex;align-items:center;gap:6px;padding:0 12px;background:#141b22;border-bottom:1px solid #223}
+  #bar .logo{font:800 17px system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:.3px;color:#4fd1a5;margin-right:14px}
+  #bar .logo span{color:#e8eef2}
+  .tab{background:#1b232c;color:#cdd6df;border:1px solid #2a3542;border-radius:8px;padding:7px 14px;cursor:pointer;font-size:13px}
+  .tab:hover{border-color:#3a4a5c}
+  .tab.active{background:#2b6df5;border-color:#2b6df5;color:#fff}
+  .hint{margin-left:auto;font-size:12px;opacity:.5}
+  #views{position:absolute;top:46px;left:0;right:0;bottom:0}
+  iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:#0e1116}
+  iframe.hidden{display:none}
+</style>
+</head>
+<body>
+  <div id="bar">
+    <div class="logo">Bioni<span>CAD</span></div>
+    <button class="tab active" data-m="0">Mattheck</button>
+    <button class="tab" data-m="1">Tessellation</button>
+    <button class="tab" data-m="2">Baum</button>
+    <button id="btnBioSave" class="tab" title="Zustand aller aktuell geöffneten Module in einer Datei speichern">💾 Projekt (.bio)</button>
+    <button id="btnBioLoad" class="tab" title="Projektdatei laden — bereits offene Module sofort, andere beim ersten Öffnen">📂 Projekt laden</button>
+    <input id="bioFile" type="file" accept=".bio,.json" style="display:none">
+    <div class="hint">Module bleiben offen — Wechseln verliert keine Daten, Rechnen läuft im Hintergrund weiter.</div>
+  </div>
+  <div id="views">
+    <iframe id="f0" data-src="mattheck.html?shell=1"></iframe>
+    <iframe id="f1" class="hidden" data-src="tessellation.html?shell=1"></iframe>
+    <iframe id="f2" class="hidden" data-src="baum_vorschau.html?shell=1"></iframe>
+  </div>
+<script>
+  var frames=[document.getElementById('f0'),document.getElementById('f1'),document.getElementById('f2')];
+  var MOD_NAMES=['mattheck','tess','baum'];   // Index <-> Name, dieselbe Zuordnung wie beim bestehenden bionicadModule-postMessage unten
+  var tabs=Array.prototype.slice.call(document.querySelectorAll('.tab[data-m]'));
+  function hideModuleDropdown(fr){ try{ var d=fr.contentDocument; if(!d) return;
+    var sel=d.getElementById('modul'); if(sel){ sel.style.display='none'; var lab=d.querySelector('label[for="modul"]'); if(lab) lab.style.display='none'; } }catch(e){} }
+  // *.bio Phase 4 (2026-07-12): Projektdateien koennen Daten fuer Module enthalten, die beim Laden noch nicht
+  // geoeffnet sind (Lazy-Apply-Entscheidung aus wissensbasis/28_projektdatei_bio_format_konzept_v1.md) — hier
+  // zwischengespeichert, bis das jeweilige Modul zum ersten Mal geladen wird (siehe ensureLoaded()).
+  var pendingApply={};
+  function ensureLoaded(i){ var fr=frames[i]; if(!fr.getAttribute('src') && fr.dataset.src){
+    fr.addEventListener('load',function(){ hideModuleDropdown(fr);
+      var name=MOD_NAMES[i]; if(pendingApply[name]!=null){ var data=pendingApply[name]; delete pendingApply[name]; fr.contentWindow.postMessage({bioApply:true, data:data}, '*'); }
+    });
+    fr.src=fr.dataset.src; } }
+  function show(i){ frames.forEach(function(fr,k){ fr.classList.toggle('hidden',k!==i); }); tabs.forEach(function(t,k){ t.classList.toggle('active',k===i); }); ensureLoaded(i); }
+  tabs.forEach(function(t,i){ t.addEventListener('click',function(){ show(i); }); });
+  // Falls ein Modul doch per Dropdown/postMessage wechseln will: Tab umschalten statt Reload
+  window.addEventListener('message',function(e){ if(e.data && e.data.bionicadModule!=null){ var map={mattheck:0,tess:1,baum:2}; var i=map[e.data.bionicadModule]; if(i!=null) show(i); } });
+  ensureLoaded(0);
+
+  // *.bio Phase 4: zentrale Speichern/Laden-Buttons — sammeln/verteilen den Zustand ueber alle AKTUELL
+  // GEOEFFNETEN Module per postMessage (bioCollect/bioCollectReply/bioApply). Module, die in dieser Sitzung
+  // nie geoeffnet wurden, koennen naturgemaess nichts beitragen und fehlen dann einfach in der Datei.
+  function collectAllModules(){
+    return new Promise(function(resolve){
+      var wanted=[]; frames.forEach(function(fr,i){ if(fr.getAttribute('src')) wanted.push(i); });
+      if(!wanted.length){ resolve({}); return; }
+      var result={}, remaining=wanted.length, doneFlag=false;
+      function finish(){ if(doneFlag) return; doneFlag=true; window.removeEventListener('message', onMsg); resolve(result); }
+      function onMsg(e){ if(e.data && e.data.bioCollectReply){ result[e.data.module]=e.data.data; remaining--; if(remaining<=0) finish(); } }
+      window.addEventListener('message', onMsg);
+      wanted.forEach(function(i){ frames[i].contentWindow.postMessage({bioCollect:true}, '*'); });
+      setTimeout(finish, 4000);   // Sicherheitsnetz, falls ein Modul (z.B. sehr alter Cache-Stand) nicht antwortet
+    });
+  }
+  document.getElementById('btnBioSave').addEventListener('click', function(){
+    var b=document.getElementById('btnBioSave'), old=b.textContent; b.textContent='⏳ sammle…';
+    collectAllModules().then(function(modules){
+      b.textContent=old;
+      var out={format:'bionicad-bio-v1', ts:new Date().toISOString(), modules:modules};
+      var blob=new Blob([JSON.stringify(out)],{type:'application/json'}), url=URL.createObjectURL(blob);
+      var l=document.createElement('a'); l.href=url; l.download='bionicad-projekt.bio'; document.body.appendChild(l); l.click(); l.remove(); URL.revokeObjectURL(url);
+    });
+  });
+  document.getElementById('btnBioLoad').addEventListener('click', function(){ document.getElementById('bioFile').click(); });
+  document.getElementById('bioFile').addEventListener('change', function(e){
+    var f=e.target.files&&e.target.files[0]; if(!f) return;
+    var rd=new FileReader();
+    rd.onload=function(ev){
+      try{
+        var data=JSON.parse(ev.target.result), mods=data.modules||{};
+        var nameToIdx={mattheck:0, tess:1, baum:2};
+        Object.keys(mods).forEach(function(name){
+          var i=nameToIdx[name]; if(i==null) return;
+          if(frames[i].getAttribute('src')) frames[i].contentWindow.postMessage({bioApply:true, data:mods[name]}, '*');
+          else pendingApply[name]=mods[name];   // wird beim ersten Öffnen dieses Tabs nachgereicht (siehe ensureLoaded())
+        });
+      }catch(err){ alert('Projekt-Datei-Fehler: '+err.message); }
+    };
+    rd.readAsText(f); e.target.value='';
+  });
+</script>
+</body>
+</html>
