@@ -13,8 +13,8 @@ Eine Werkzeugsammlung, um Bauteile nach Vorbildern aus der Natur zu erzeugen und
 | Modul | Datei | Zweck |
 |---|---|---|
 | **Mattheck / Struktur** | `ui/mattheck.html` | Lastfälle → FEM-Spannung → Topologie-Optimierung (SKO, SIMP-Pro), Kerbrundung (CAO), Beulanalyse/-optimierung, Booleans. → [Handbuch](Mattheck.md) |
-| **Tessellation** | `ui/tessellation.html` | Gitter/Schaum/Voronoi, Attraktoren, Kraftfluss, Bauraum-STL, Booleans. Kelvin/Weaire-Randzellen enden seit #71 flach an den Bauraumwänden (Spiegel-Aussaat — behebt die "random struts", siehe BIONICAD_CONTEXT.md #71). |
-| **Baum** | `ui/baum_vorschau.html` | Space-Colonization-Baum, Wachstum entlang Kraftfluss, Booleans. |
+| **Tessellation** | `ui/tessellation.html` | Acht Gitter/Schaum/Voronoi-Zelltypen, Attraktoren, Zonen-Blend, Kraftfluss-Ausrichtung, Bauraum-STL, AM-Constraints, Booleans. → [Handbuch](Tessellation.md) |
+| **Baum** | `ui/baum_vorschau.html` | Space-Colonization-Wachstum, Verzweigungsregeln (Murray), Durchfluss-Physik, Doppelbaum/Wärmetauscher, Booleans. → [Handbuch](Baum.md) |
 
 ## Grundbegriffe
 
@@ -26,7 +26,8 @@ Eine Werkzeugsammlung, um Bauteile nach Vorbildern aus der Natur zu erzeugen und
 ## Inhaltsverzeichnis
 
 - [Mattheck / Struktur-Optimierung](Mattheck.md)
-- *(weitere Modul-Handbücher folgen)*
+- [Tessellation](Tessellation.md)
+- [Baum](Baum.md)
 
 ## Start & Bedienung (Kurz)
 
